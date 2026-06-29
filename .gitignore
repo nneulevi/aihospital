@@ -1,0 +1,21 @@
+﻿# 前端依赖
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+
+# 后端依赖 (Project2)
+Project2/node_modules/
+Project2/venv/
+Project2/__pycache__/
+Project2/.env
+Project2/*.pyc
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE
+.vscode/
+.idea/
