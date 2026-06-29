@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.CheckRequestMapper">
+
+    <resultMap id="CheckRequestResultMap" type="CheckRequest">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="medicalTechnologyId" column="medical_technology_id"/>
+        <result property="checkInfo" column="check_info"/>
+        <result property="checkPosition" column="check_position"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="checkState" column="check_state"/>
+        <result property="checkResult" column="check_result"/>
+        <result property="checkEmployeeId" column="check_employee_id"/>
+    </resultMap>
+
+    <select id="selectByRegisterId" resultMap="CheckRequestResultMap">
+        SELECT cr.*, mt.tech_name, mt.tech_price
+        FROM check_request cr
+                 LEFT JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+        WHERE cr.register_id = #{registerId}
+        ORDER BY cr.creation_time DESC
+    </select>
+
+    <update id="updateResult">
+        UPDATE check_request
+        SET check_result = #{checkResult},
+            check_employee_id = #{checkEmployeeId},
+            check_state = 'COMPLETED',
+            check_time = CURRENT_TIMESTAMP,
+            check_remark = #{checkRemark}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateState">
+        UPDATE check_request
+        SET check_state = #{checkState}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateExecute">
+        UPDATE check_request
+        SET check_state = 'EXECUTING',
+            check_employee_id = #{checkEmployeeId},
+            check_time = CURRENT_TIMESTAMP,
+            check_remark = #{checkRemark}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

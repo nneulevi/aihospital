@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.PrescriptionMapper">
+
+    <resultMap id="PrescriptionResultMap" type="com.neuedu.his.model.entity.Prescription">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="doctorId" column="doctor_id"/>
+        <result property="prescriptionNo" column="prescription_no"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="prescriptionStatus" column="prescription_status"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="dispenseTime" column="dispense_time"/>
+        <result property="pharmacistId" column="pharmacist_id"/>
+    </resultMap>
+
+    <select id="selectByRegisterId" resultMap="PrescriptionResultMap">
+        SELECT p.*, pd.drug_id, pd.usage_route, pd.frequency, pd.single_dose, pd.use_days, pd.drug_number,
+        d.drug_name, d.drug_format as specification, d.drug_price as price
+        FROM prescription p
+        LEFT JOIN prescription_detail pd ON p.id = pd.prescription_id
+        LEFT JOIN drug_info d ON pd.drug_id = d.id
+        WHERE p.register_id = #{registerId}
+        ORDER BY p.creation_time DESC
+    </select>
+
+    <update id="updateStatusAndAmount">
+        UPDATE prescription
+        SET prescription_status = #{prescriptionStatus},
+            total_amount = COALESCE(#{totalAmount}, total_amount)
+        WHERE id = #{id}
+    </update>
+
+    <update id="dispense">
+        UPDATE prescription
+        SET prescription_status = 'DISPENSED',
+            pharmacist_id = #{pharmacistId},
+            dispense_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+</mapper>

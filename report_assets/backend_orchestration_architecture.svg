@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#34495e"/></marker>
+    <style>
+      .title{font:700 30px Arial,'Microsoft YaHei',sans-serif;fill:#17324d}.h{font:700 18px Arial,'Microsoft YaHei',sans-serif;fill:#17324d}.t{font:15px Arial,'Microsoft YaHei',sans-serif;fill:#34495e}.s{font:13px Arial,'Microsoft YaHei',sans-serif;fill:#52677a}.box{stroke:#55738c;stroke-width:2}.line{stroke:#34495e;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1400" height="760" fill="#fbfcfe"/>
+  <text x="700" y="48" text-anchor="middle" class="title">头部 CT AI 后端编排架构</text>
+
+  <rect x="60" y="115" width="250" height="135" rx="10" fill="#e9f3fb" class="box"/>
+  <text x="185" y="153" text-anchor="middle" class="h">主平台 / 医生端</text>
+  <text x="185" y="183" text-anchor="middle" class="t">上传 CT、轮询任务</text>
+  <text x="185" y="208" text-anchor="middle" class="t">查看结果、提交审核</text>
+
+  <rect x="430" y="90" width="540" height="190" rx="12" fill="#eef4ff" class="box"/>
+  <text x="700" y="130" text-anchor="middle" class="h">HeadCTOrchestrator 统一入口</text>
+  <text x="700" y="160" text-anchor="middle" class="t">POST /tasks · GET /tasks/{task_id} · GET /results/{task_id}</text>
+  <rect x="470" y="188" width="140" height="55" rx="7" fill="#ffffff" class="box"/>
+  <text x="540" y="221" text-anchor="middle" class="s">任务状态管理</text>
+  <rect x="630" y="188" width="140" height="55" rx="7" fill="#ffffff" class="box"/>
+  <text x="700" y="221" text-anchor="middle" class="s">服务调度</text>
+  <rect x="790" y="188" width="140" height="55" rx="7" fill="#ffffff" class="box"/>
+  <text x="860" y="221" text-anchor="middle" class="s">结果与错误映射</text>
+
+  <rect x="1055" y="115" width="285" height="135" rx="10" fill="#f2f6f8" class="box"/>
+  <text x="1198" y="153" text-anchor="middle" class="h">任务与审核存储</text>
+  <text x="1198" y="183" text-anchor="middle" class="t">task.json / review.json</text>
+  <text x="1198" y="208" text-anchor="middle" class="t">review_events.jsonl</text>
+
+  <path d="M310 182 L430 182" class="line"/>
+  <path d="M970 182 L1055 182" class="line"/>
+
+  <rect x="90" y="390" width="340" height="180" rx="11" fill="#eaf6ef" class="box"/>
+  <text x="260" y="432" text-anchor="middle" class="h">Filter 影像质控服务</text>
+  <text x="260" y="466" text-anchor="middle" class="t">CT 读取与空间信息保留</text>
+  <text x="260" y="493" text-anchor="middle" class="t">3D U-Net 金属伪影识别</text>
+  <text x="260" y="520" text-anchor="middle" class="t">mask、严重程度、三平面预览</text>
+
+  <rect x="530" y="390" width="340" height="180" rx="11" fill="#fff4e6" class="box"/>
+  <text x="700" y="432" text-anchor="middle" class="h">LesionDetection 病灶服务</text>
+  <text x="700" y="466" text-anchor="middle" class="t">颅内出血模型推理</text>
+  <text x="700" y="493" text-anchor="middle" class="t">quality_context 可靠性传递</text>
+  <text x="700" y="520" text-anchor="middle" class="t">结构化病灶结果与模型版本</text>
+
+  <rect x="970" y="390" width="340" height="180" rx="11" fill="#f6effa" class="box"/>
+  <text x="1140" y="432" text-anchor="middle" class="h">RAG 报告辅助服务</text>
+  <text x="1140" y="466" text-anchor="middle" class="t">pgvector 召回与 rerank</text>
+  <text x="1140" y="493" text-anchor="middle" class="t">LLM 生成结构化报告草稿</text>
+  <text x="1140" y="520" text-anchor="middle" class="t">来源追踪与 safety_rules</text>
+
+  <path d="M610 280 C560 325 360 320 260 390" class="line"/>
+  <path d="M700 280 L700 390" class="line"/>
+  <path d="M790 280 C850 325 1040 320 1140 390" class="line"/>
+
+  <rect x="240" y="645" width="920" height="70" rx="10" fill="#ffffff" class="box"/>
+  <text x="700" y="675" text-anchor="middle" class="h">统一输出 orchestrator_result.json</text>
+  <text x="700" y="701" text-anchor="middle" class="t">quality_control · lesion_analysis · analysis_reliability · report_assist · warnings</text>
+  <path d="M260 570 L450 645" class="line"/>
+  <path d="M700 570 L700 645" class="line"/>
+  <path d="M1140 570 L950 645" class="line"/>
+</svg>

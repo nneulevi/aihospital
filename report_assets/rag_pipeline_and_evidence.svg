@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="720" viewBox="0 0 1440 720">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#34495e"/></marker>
+    <style>.title{font:700 30px Arial,'Microsoft YaHei',sans-serif;fill:#17324d}.h{font:700 17px Arial,'Microsoft YaHei',sans-serif;fill:#17324d}.t{font:14px Arial,'Microsoft YaHei',sans-serif;fill:#40566b}.s{font:13px Arial,'Microsoft YaHei',sans-serif;fill:#5d6d7e}.box{stroke:#607d94;stroke-width:1.8}.line{stroke:#34495e;stroke-width:2;fill:none;marker-end:url(#arrow)}</style>
+  </defs>
+  <rect width="1440" height="720" fill="#fbfcfe"/>
+  <text x="720" y="48" text-anchor="middle" class="title">RAG 报告辅助增强链路与证据流</text>
+
+  <rect x="45" y="105" width="195" height="125" rx="9" fill="#eaf3fb" class="box"/>
+  <text x="143" y="140" text-anchor="middle" class="h">知识文档</text>
+  <text x="143" y="171" text-anchor="middle" class="t">Markdown + front matter</text>
+  <text x="143" y="197" text-anchor="middle" class="s">source_id / tags / version</text>
+
+  <rect x="285" y="105" width="195" height="125" rx="9" fill="#eaf3fb" class="box"/>
+  <text x="383" y="140" text-anchor="middle" class="h">Embedding</text>
+  <text x="383" y="171" text-anchor="middle" class="t">text-embedding-v4</text>
+  <text x="383" y="197" text-anchor="middle" class="s">1536 维向量</text>
+
+  <rect x="525" y="105" width="230" height="125" rx="9" fill="#eef8f1" class="box"/>
+  <text x="640" y="140" text-anchor="middle" class="h">PostgreSQL + pgvector</text>
+  <text x="640" y="171" text-anchor="middle" class="t">rag_documents</text>
+  <text x="640" y="197" text-anchor="middle" class="s">HNSW / vector_cosine_ops</text>
+
+  <path d="M240 168 L285 168" class="line"/><path d="M480 168 L525 168" class="line"/>
+
+  <rect x="45" y="390" width="210" height="135" rx="9" fill="#fff4e6" class="box"/>
+  <text x="150" y="427" text-anchor="middle" class="h">结构化模型结果</text>
+  <text x="150" y="458" text-anchor="middle" class="t">quality_control</text>
+  <text x="150" y="484" text-anchor="middle" class="t">lesion_analysis</text>
+
+  <rect x="300" y="390" width="195" height="135" rx="9" fill="#fff4e6" class="box"/>
+  <text x="398" y="427" text-anchor="middle" class="h">查询构造</text>
+  <text x="398" y="458" text-anchor="middle" class="t">病灶、伪影、场景词</text>
+  <text x="398" y="484" text-anchor="middle" class="s">metadata 过滤条件</text>
+
+  <rect x="540" y="390" width="195" height="135" rx="9" fill="#eef8f1" class="box"/>
+  <text x="638" y="427" text-anchor="middle" class="h">HNSW 粗召回</text>
+  <text x="638" y="458" text-anchor="middle" class="t">recall_top_n = 20</text>
+  <text x="638" y="484" text-anchor="middle" class="s">ef_search = 80</text>
+
+  <rect x="780" y="390" width="195" height="135" rx="9" fill="#f4eff9" class="box"/>
+  <text x="878" y="427" text-anchor="middle" class="h">二阶段重排</text>
+  <text x="878" y="458" text-anchor="middle" class="t">gte-rerank-v2</text>
+  <text x="878" y="484" text-anchor="middle" class="s">输出 top_k 证据</text>
+
+  <rect x="1020" y="390" width="195" height="135" rx="9" fill="#f4eff9" class="box"/>
+  <text x="1118" y="427" text-anchor="middle" class="h">报告草稿生成</text>
+  <text x="1118" y="458" text-anchor="middle" class="t">qwen-plus / 规则模板</text>
+  <text x="1118" y="484" text-anchor="middle" class="s">结构化字段输出</text>
+
+  <rect x="1260" y="390" width="145" height="135" rx="9" fill="#fdeeee" class="box"/>
+  <text x="1333" y="427" text-anchor="middle" class="h">安全校验</text>
+  <text x="1333" y="458" text-anchor="middle" class="t">禁止词</text>
+  <text x="1333" y="484" text-anchor="middle" class="s">医生审核提示</text>
+
+  <path d="M255 458 L300 458" class="line"/><path d="M495 458 L540 458" class="line"/><path d="M735 458 L780 458" class="line"/><path d="M975 458 L1020 458" class="line"/><path d="M1215 458 L1260 458" class="line"/>
+  <path d="M640 230 L640 390" class="line"/>
+
+  <rect x="250" y="610" width="940" height="70" rx="10" fill="#ffffff" class="box"/>
+  <text x="720" y="639" text-anchor="middle" class="h">可审核输出</text>
+  <text x="720" y="664" text-anchor="middle" class="t">suggested_report_sections · recommended_actions · limitations · rag_context.sources</text>
+  <path d="M1333 525 C1300 590 1120 610 1000 610" class="line"/>
+</svg>

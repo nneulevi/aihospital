@@ -1,0 +1,61 @@
+// src/styles/variables.scss
+
+// 患者端颜色
+$patient-primary: #F4A261;
+$patient-primary-light: #FFE8D6;
+$patient-primary-dark: #E76F51;
+$patient-bg: #FFF9F0;
+$patient-card-bg: #FAF3E8;
+$patient-text-primary: #5C4B3A;
+$patient-text-secondary: #8B7A6B;
+$patient-border: #E8DCC8;
+$patient-success: #8CB369;
+$patient-warning: #E9C46A;
+$patient-error: #E76F51;
+
+// 医生端颜色
+$doctor-primary: #005B96;
+$doctor-primary-light: #E8F0F8;
+$doctor-primary-dark: #004070;
+$doctor-bg: #F5F7FA;
+$doctor-card-bg: #FFFFFF;
+$doctor-text-primary: #2C3E50;
+$doctor-text-secondary: #7F8C8D;
+$doctor-border: #D5D8DC;
+$doctor-success: #27AE60;
+$doctor-warning: #F39C12;
+$doctor-error: #E74C3C;
+
+// AI 颜色
+$ai-primary: #5E60CE;
+$ai-primary-light: #8B8CF0;
+
+// 字体
+$font-size-xs: 12px;
+$font-size-sm: 14px;
+$font-size-md: 16px;
+$font-size-lg: 18px;
+$font-size-xl: 20px;
+$font-size-xxl: 24px;
+
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-xxl: 48px;
+
+// 圆角
+$border-radius-sm: 4px;
+$border-radius-md: 8px;
+$border-radius-lg: 12px;
+$border-radius-xl: 16px;
+$border-radius-round: 50%;
+$border-radius-pill: 9999px;
+
+// 阴影
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+$shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.InspectionRequestMapper">
+
+    <resultMap id="InspectionRequestResultMap" type="InspectionRequest">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="medicalTechnologyId" column="medical_technology_id"/>
+        <result property="inspectionInfo" column="inspection_info"/>
+        <result property="inspectionPosition" column="inspection_position"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="inspectionState" column="inspection_state"/>
+        <result property="inspectionResult" column="inspection_result"/>
+        <result property="inspectionEmployeeId" column="inspection_employee_id"/>
+    </resultMap>
+
+    <select id="selectByRegisterId" resultMap="InspectionRequestResultMap">
+        SELECT ir.*, mt.tech_name, mt.tech_price
+        FROM inspection_request ir
+                 LEFT JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+        WHERE ir.register_id = #{registerId}
+        ORDER BY ir.creation_time DESC
+    </select>
+
+    <update id="updateResult">
+        UPDATE inspection_request
+        SET inspection_result = #{inspectionResult},
+            inspection_employee_id = #{inspectionEmployeeId},
+            inspection_state = 'COMPLETED',
+            inspection_time = CURRENT_TIMESTAMP,
+            inspection_remark = #{inspectionRemark}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateState">
+        UPDATE inspection_request
+        SET inspection_state = #{inspectionState}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateExecute">
+        UPDATE inspection_request
+        SET inspection_state = 'EXECUTING',
+            inspection_employee_id = #{inspectionEmployeeId},
+            inspection_time = CURRENT_TIMESTAMP,
+            inspection_remark = #{inspectionRemark}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

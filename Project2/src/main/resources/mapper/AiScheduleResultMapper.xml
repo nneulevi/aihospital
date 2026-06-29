@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.AiScheduleResultMapper">
+
+    <insert id="batchInsert">
+        INSERT INTO ai_schedule_result(employee_id, deptment_id, schedule_date, shift_type, regist_quota, is_generated, is_modified, source_type)
+        VALUES
+        <foreach collection="results" item="item" separator=",">
+            (#{item.employeeId}, #{item.deptmentId}, #{item.scheduleDate}, #{item.shiftType}, #{item.registQuota}, #{item.isGenerated}, #{item.isModified}, #{item.sourceType})
+        </foreach>
+    </insert>
+
+</mapper>

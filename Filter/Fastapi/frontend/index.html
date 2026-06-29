@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CT 金属伪影检测服务</title>
+    <link rel="stylesheet" href="/frontend/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">CT Artifact AI Service</p>
+          <h1>CT 金属伪影检测工作台</h1>
+        </div>
+        <div class="status-pill" id="serviceStatus">检查中</div>
+      </section>
+
+      <section class="grid">
+        <section class="panel upload-panel">
+          <div class="panel-head">
+            <div>
+              <h2>上传 CT</h2>
+              <p>支持 .nii / .nii.gz，完成后生成可下载的 mask。</p>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>推理服务</span>
+            <select id="backendSelect">
+              <option value="same">当前服务</option>
+              <option value="http://localhost:8000">3D U-Net 主服务 :8000</option>
+              <option value="http://localhost:8001">2D U-Net 备份 :8001</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>调用方式</span>
+            <select id="modeSelect">
+              <option value="task">任务式推理</option>
+              <option value="sync">同步推理</option>
+            </select>
+          </label>
+
+          <label class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" accept=".nii,.gz" />
+            <span class="drop-icon">+</span>
+            <strong id="fileName">选择或拖入 NIfTI CT 文件</strong>
+            <small>文件会上传到后端并触发 AI 推理</small>
+          </label>
+
+          <button id="submitBtn" class="primary-btn" disabled>开始检测</button>
+          <div class="progress" id="progress" hidden>
+            <div class="progress-bar"></div>
+          </div>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="panel-head">
+            <div>
+              <h2>检测结果</h2>
+              <p id="resultSubtitle">等待上传 CT 文件。</p>
+            </div>
+            <a id="downloadBtn" class="download-btn disabled" href="#" download>下载 Mask</a>
+          </div>
+
+          <div class="metrics">
+            <div><span>状态</span><strong id="mStatus">-</strong></div>
+            <div><span>阳性体素</span><strong id="mVoxels">-</strong></div>
+            <div><span>伪影比例</span><strong id="mRatio">-</strong></div>
+            <div><span>严重程度</span><strong id="mSeverity">-</strong></div>
+            <div><span>耗时</span><strong id="mElapsed">-</strong></div>
+            <div><span>体数据尺寸</span><strong id="mShape">-</strong></div>
+            <div><span>Spacing</span><strong id="mSpacing">-</strong></div>
+          </div>
+
+          <div class="preview-grid" id="previewGrid" hidden>
+            <figure>
+              <img id="previewAxial" alt="Axial preview" />
+              <figcaption>Axial</figcaption>
+            </figure>
+            <figure>
+              <img id="previewCoronal" alt="Coronal preview" />
+              <figcaption>Coronal</figcaption>
+            </figure>
+            <figure>
+              <img id="previewSagittal" alt="Sagittal preview" />
+              <figcaption>Sagittal</figcaption>
+            </figure>
+          </div>
+
+          <div class="info-box">
+            <span>结果文件</span>
+            <code id="maskFile">-</code>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="panel-head">
+          <div>
+            <h2>服务日志</h2>
+            <p>用于确认前后端链路、模型加载和下载地址。</p>
+          </div>
+          <button id="healthBtn" class="ghost-btn">刷新状态</button>
+        </div>
+        <pre id="logBox"></pre>
+      </section>
+    </main>
+
+    <script src="/frontend/app.js"></script>
+  </body>
+</html>

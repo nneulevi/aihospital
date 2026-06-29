@@ -1,0 +1,6 @@
+torch>=2.0
+SimpleITK>=2.3
+numpy>=1.24,<2
+matplotlib>=3.7
+PySide6-Essentials>=6.10.3
+vtk>=9.3

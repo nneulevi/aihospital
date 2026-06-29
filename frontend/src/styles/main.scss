@@ -1,0 +1,64 @@
+// src/styles/main.scss
+@use './variables.scss' as *;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+// 患者端（移动端）
+.patient-app {
+  background-color: $patient-bg;
+  min-height: 100vh;
+  color: $patient-text-primary;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+// 医生端（PC端）
+.doctor-app {
+  background-color: $doctor-bg;
+  min-height: 100vh;
+  color: $doctor-text-primary;
+  font-size: 14px;
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: $doctor-border;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+// 管理员端（PC端）
+.admin-app {
+  background-color: $doctor-bg;
+  min-height: 100vh;
+  color: $doctor-text-primary;
+  font-size: 14px;
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: $doctor-border;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

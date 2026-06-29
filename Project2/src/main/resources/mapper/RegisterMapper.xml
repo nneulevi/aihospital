@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.RegisterMapper">
+
+    <resultMap id="RegisterResultMap" type="com.neuedu.his.model.entity.Register">
+        <id property="id" column="id"/>
+        <result property="visitNo" column="visit_no"/>
+        <result property="patientId" column="patient_id"/>
+        <result property="visitDate" column="visit_date"/>
+        <result property="noon" column="noon"/>
+        <result property="deptmentId" column="deptment_id"/>
+        <result property="employeeId" column="employee_id"/>
+        <result property="registLevelId" column="regist_level_id"/>
+        <result property="settleCategoryId" column="settle_category_id"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="queueNo" column="queue_no"/>
+        <result property="registMethod" column="regist_method"/>
+        <result property="registMoney" column="regist_money"/>
+        <result property="visitState" column="visit_state"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="doctorName" column="doctor_name"/>
+        <result property="registName" column="regist_name"/>
+        <result property="realName" column="real_name"/>
+        <result property="gender" column="gender"/>
+        <result property="birthdate" column="birthdate"/>
+        <result property="caseNumber" column="case_number"/>
+    </resultMap>
+
+    <select id="selectPatientRecords" resultMap="RegisterResultMap">
+        SELECT r.*, p.real_name, p.gender, p.birthdate, d.dept_name, e.realname as doctor_name, rl.regist_name
+        FROM register r
+        JOIN patient p ON r.patient_id = p.id
+        JOIN department d ON r.deptment_id = d.id
+        JOIN employee e ON r.employee_id = e.id
+        JOIN regist_level rl ON r.regist_level_id = rl.id
+        WHERE r.patient_id = #{patientId}
+        <if test="startDate != null">AND r.visit_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND r.visit_date &lt;= #{endDate}</if>
+        <if test="visitState != null">AND r.visit_state = #{visitState}</if>
+        ORDER BY r.visit_date DESC
+    </select>
+
+    <select id="selectDoctorPatients" resultMap="RegisterResultMap">
+        SELECT r.*, p.real_name, p.gender, p.birthdate, p.case_number, d.dept_name
+        FROM register r
+                 JOIN patient p ON r.patient_id = p.id
+                 JOIN department d ON r.deptment_id = d.id
+        WHERE r.employee_id = #{doctorId}
+          AND r.visit_state = #{visitState}
+        ORDER BY r.queue_no ASC, r.visit_date ASC
+    </select>
+
+    <select id="selectVisitDetail" resultMap="RegisterResultMap">
+        SELECT r.*,
+               p.real_name, p.gender, p.birthdate, p.case_number, p.phone, p.home_address,
+               mr.readme, mr.present, mr.diagnosis, mr.record_status,
+               (SELECT COUNT(*) FROM check_request WHERE register_id = r.id) as check_count,
+               (SELECT COUNT(*) FROM inspection_request WHERE register_id = r.id) as inspection_count,
+               (SELECT COUNT(*) FROM prescription WHERE register_id = r.id) as prescription_count
+        FROM register r
+                 JOIN patient p ON r.patient_id = p.id
+                 LEFT JOIN medical_record mr ON r.id = mr.register_id
+        WHERE r.id = #{registerId}
+    </select>
+
+    <select id="selectChargeItems" resultMap="RegisterResultMap">
+        SELECT * FROM register WHERE id = #{registerId}
+    </select>
+
+    <update id="cancelRegister">
+        UPDATE register SET visit_state = 'REFUNDED' WHERE id = #{id}
+    </update>
+
+</mapper>

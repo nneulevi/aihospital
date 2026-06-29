@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: his-system
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${PROJECT2_DB_URL:jdbc:postgresql://localhost:5432/hospital?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+    username: ${PROJECT2_DB_USERNAME:postgres}
+    password: ${PROJECT2_DB_PASSWORD:postgres}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+
+  servlet:
+    multipart:
+      max-file-size: 1024MB
+      max-request-size: 1024MB
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.neuedu.his.model.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+server:
+  port: 8092
+  servlet:
+    context-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.neuedu.his.mapper: DEBUG
+    com.neuedu.his: DEBUG
+
+ai:
+  mock:
+    enabled: false
+  head-ct:
+    orchestrator-base-url: http://127.0.0.1:8010
+    report-base-url: http://127.0.0.1:8030
+    poll-interval-ms: 1000
+    timeout-seconds: 300
+    request-timeout-seconds: 30
+    actor-id: project2-platform
+    actor-role: integration_service
+
+file:
+  upload:
+    path: ./uploads

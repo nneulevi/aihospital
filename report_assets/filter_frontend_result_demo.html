@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Filter Web 结果展示</title>
+  <link rel="stylesheet" href="file:///D:/exam/Filter/Fastapi/frontend/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="topbar">
+      <div><p class="eyebrow">CT Artifact AI Service</p><h1>CT 金属伪影检测工作台</h1></div>
+      <div class="status-pill status-ok">模型可用</div>
+    </section>
+    <section class="grid">
+      <section class="panel upload-panel">
+        <div class="panel-head"><div><h2>上传 CT</h2><p>支持 .nii / .nii.gz，完成后生成可下载的 mask。</p></div></div>
+        <label class="field"><span>推理服务</span><select><option>当前服务：3D U-Net</option></select></label>
+        <label class="field"><span>调用方式</span><select><option>任务式推理</option></select></label>
+        <label class="dropzone">
+          <span class="drop-icon">✓</span><strong>sample_ct_positive.nii.gz</strong><small>任务执行成功，已生成结果文件</small>
+        </label>
+        <button class="primary-btn">重新检测</button>
+      </section>
+      <section class="panel result-panel">
+        <div class="panel-head"><div><h2>检测结果</h2><p>完成，后端：unet3d</p></div><a class="download-btn">下载 Mask</a></div>
+        <div class="metrics">
+          <div><span>状态</span><strong>success</strong></div>
+          <div><span>阳性体素</span><strong>290</strong></div>
+          <div><span>伪影比例</span><strong>0.443%</strong></div>
+          <div><span>严重程度</span><strong>mild</strong></div>
+          <div><span>耗时</span><strong>41 ms</strong></div>
+          <div><span>体数据尺寸</span><strong>16 × 64 × 64</strong></div>
+          <div><span>Spacing</span><strong>0.451, 0.451, 5.062</strong></div>
+        </div>
+        <div class="preview-grid">
+          <figure><img src="file:///D:/exam/Filter/filter_outputs/03ae960c2850468881fe54ad200306a3/preview_axial.png" alt="Axial preview" /><figcaption>Axial</figcaption></figure>
+          <figure><img src="file:///D:/exam/Filter/filter_outputs/03ae960c2850468881fe54ad200306a3/preview_coronal.png" alt="Coronal preview" /><figcaption>Coronal</figcaption></figure>
+          <figure><img src="file:///D:/exam/Filter/filter_outputs/03ae960c2850468881fe54ad200306a3/preview_sagittal.png" alt="Sagittal preview" /><figcaption>Sagittal</figcaption></figure>
+        </div>
+        <div class="info-box"><span>结果文件</span><code>mask.nii.gz</code></div>
+      </section>
+    </section>
+    <section class="panel log-panel">
+      <div class="panel-head"><div><h2>服务日志</h2><p>用于确认前后端链路、模型加载和下载地址。</p></div><button class="ghost-btn">刷新状态</button></div>
+      <pre>[19:04:34] 推理完成
+{
+  "backend": "unet3d",
+  "model_version": "v1.0.0",
+  "affected_slices": [6, 7, 8],
+  "report_suggestion": "存在轻度金属伪影，建议关注邻近区域。"
+}</pre>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.DrugStockRecordMapper">
+
+    <select id="selectByCondition" resultType="com.neuedu.his.model.vo.DrugStockRecordVO">
+        SELECT dsr.id,
+               dsr.drug_id,
+               d.drug_name,
+               dsr.record_type,
+               dsr.quantity,
+               dsr.before_stock,
+               dsr.after_stock,
+               dsr.operator_id,
+               e.realname AS operator_name,
+               dsr.related_prescription_id,
+               dsr.reason,
+               dsr.create_time
+        FROM drug_stock_record dsr
+                 LEFT JOIN drug_info d ON dsr.drug_id = d.id
+                 LEFT JOIN employee e ON dsr.operator_id = e.id
+        WHERE 1=1
+        <if test="drugId != null">AND dsr.drug_id = #{drugId}</if>
+        <if test="recordType != null and recordType != ''">AND dsr.record_type = #{recordType}</if>
+        ORDER BY dsr.create_time DESC, dsr.id DESC
+    </select>
+
+</mapper>

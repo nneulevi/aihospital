@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.SchedulingMapper">
+
+    <select id="selectByCondition" resultType="com.neuedu.his.model.entity.Scheduling">
+        SELECT * FROM scheduling
+        WHERE 1=1
+        <if test="deptId != null">AND deptment_id = #{deptId}</if>
+        <if test="employeeId != null">AND employee_id = #{employeeId}</if>
+        <if test="startDate != null">AND schedule_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND schedule_date &lt;= #{endDate}</if>
+        ORDER BY schedule_date, noon
+    </select>
+
+    <select id="selectAvailableDoctors" resultType="com.neuedu.his.model.entity.Scheduling">
+        SELECT s.*, e.realname as doctorName, e.title_level
+        FROM scheduling s
+                 JOIN employee e ON s.employee_id = e.id
+        WHERE s.deptment_id = #{deptId}
+          AND s.schedule_date = #{scheduleDate}
+          AND s.noon = #{noon}
+          AND s.schedule_status = 'NORMAL'
+          AND e.delmark = TRUE
+    </select>
+
+    <select id="selectSources" resultType="com.neuedu.his.model.vo.ScheduleSourceVO">
+        SELECT s.id AS schedule_id,
+               s.employee_id AS doctor_id,
+               e.realname AS doctor_name,
+               s.deptment_id AS dept_id,
+               d.dept_name,
+               s.schedule_date,
+               s.noon,
+               s.regist_quota,
+               s.schedule_status,
+               s.source_type
+        FROM scheduling s
+                 LEFT JOIN employee e ON s.employee_id = e.id
+                 LEFT JOIN department d ON s.deptment_id = d.id
+        WHERE 1=1
+        <if test="deptId != null">AND s.deptment_id = #{deptId}</if>
+        <if test="doctorId != null">AND s.employee_id = #{doctorId}</if>
+        <if test="startDate != null">AND s.schedule_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND s.schedule_date &lt;= #{endDate}</if>
+        ORDER BY s.schedule_date, s.noon, e.realname
+    </select>
+
+</mapper>

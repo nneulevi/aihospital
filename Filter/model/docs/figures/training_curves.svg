@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430">
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+<path d="M0,0 L10,4 L0,8 Z" fill="#2f3a4a"/>
+</marker>
+</defs>
+<rect width="100%" height="100%" fill="#fbfcfe"/>
+<text x="490" y="34" text-anchor="middle" font-family="Arial, Microsoft YaHei, sans-serif" font-size="22" font-weight="700" fill="#152333">训练指标曲线</text>
+<rect x="60" y="75" width="380" height="260" fill="#ffffff" stroke="#c8d2df"/>
+<text x="250" y="99" text-anchor="middle" font-family="Arial" font-size="15" font-weight="700" fill="#1d2b3a">Loss</text>
+<line x1="102" y1="295" x2="410" y2="295" stroke="#75808c"/>
+<line x1="102" y1="123" x2="102" y2="295" stroke="#75808c"/>
+<polyline points="102.0,295.0" fill="none" stroke="#2d6cdf" stroke-width="2.4"/>
+<rect x="102" y="313" width="14" height="4" fill="#2d6cdf"/>
+<text x="124" y="318" font-family="Arial" font-size="12" fill="#405064">train</text>
+<polyline points="102.0,295.0" fill="none" stroke="#d94f45" stroke-width="2.4"/>
+<rect x="102" y="331" width="14" height="4" fill="#d94f45"/>
+<text x="124" y="336" font-family="Arial" font-size="12" fill="#405064">val</text>
+<rect x="540" y="75" width="380" height="260" fill="#ffffff" stroke="#c8d2df"/>
+<text x="730" y="99" text-anchor="middle" font-family="Arial" font-size="15" font-weight="700" fill="#1d2b3a">Validation Metrics</text>
+<line x1="582" y1="295" x2="890" y2="295" stroke="#75808c"/>
+<line x1="582" y1="123" x2="582" y2="295" stroke="#75808c"/>
+<polyline points="582.0,295.0" fill="none" stroke="#26966f" stroke-width="2.4"/>
+<rect x="582" y="313" width="14" height="4" fill="#26966f"/>
+<text x="604" y="318" font-family="Arial" font-size="12" fill="#405064">dice</text>
+<polyline points="582.0,295.0" fill="none" stroke="#8c61d3" stroke-width="2.4"/>
+<rect x="582" y="331" width="14" height="4" fill="#8c61d3"/>
+<text x="604" y="336" font-family="Arial" font-size="12" fill="#405064">iou</text>
+</svg>

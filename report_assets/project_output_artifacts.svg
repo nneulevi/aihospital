@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760">
+  <defs><style>.title{font:700 30px Arial,'Microsoft YaHei',sans-serif;fill:#17324d}.h{font:700 18px Arial,'Microsoft YaHei',sans-serif;fill:#17324d}.t{font:14px Arial,'Microsoft YaHei',sans-serif;fill:#40566b}.s{font:13px Arial,'Microsoft YaHei',sans-serif;fill:#5d6d7e}.box{stroke:#607d94;stroke-width:1.8}</style></defs>
+  <rect width="1400" height="760" fill="#fbfcfe"/>
+  <text x="700" y="48" text-anchor="middle" class="title">阶段性输出产物与可验证证据</text>
+
+  <rect x="70" y="105" width="380" height="235" rx="11" fill="#eaf6ef" class="box"/>
+  <text x="260" y="145" text-anchor="middle" class="h">Filter 模型与质控产物</text>
+  <text x="105" y="182" class="t">• best / last checkpoint</text>
+  <text x="105" y="212" class="t">• metrics.json、loss 曲线、混淆矩阵</text>
+  <text x="105" y="242" class="t">• mask.nii.gz、result.json、task.json</text>
+  <text x="105" y="272" class="t">• axial / coronal / sagittal 预览图</text>
+  <text x="105" y="302" class="s">验证模型训练、空间输出和服务结果</text>
+
+  <rect x="510" y="105" width="380" height="235" rx="11" fill="#fff4e6" class="box"/>
+  <text x="700" y="145" text-anchor="middle" class="h">LesionDetection 病灶产物</text>
+  <text x="545" y="182" class="t">• lesion_result.json</text>
+  <text x="545" y="212" class="t">• 病灶类型、置信度与严重程度</text>
+  <text x="545" y="242" class="t">• quality_context 与可靠性说明</text>
+  <text x="545" y="272" class="t">• model_name / model_version</text>
+  <text x="545" y="302" class="s">验证模型合同和质控信息传递</text>
+
+  <rect x="950" y="105" width="380" height="235" rx="11" fill="#eef4ff" class="box"/>
+  <text x="1140" y="145" text-anchor="middle" class="h">Orchestrator 后端产物</text>
+  <text x="985" y="182" class="t">• task.json、filter_result.json</text>
+  <text x="985" y="212" class="t">• lesion_result.json</text>
+  <text x="985" y="242" class="t">• orchestrator_result.json</text>
+  <text x="985" y="272" class="t">• review.json / review_events.jsonl</text>
+  <text x="985" y="302" class="s">验证端到端编排与人工审核闭环</text>
+
+  <rect x="180" y="420" width="470" height="230" rx="11" fill="#f4eff9" class="box"/>
+  <text x="415" y="460" text-anchor="middle" class="h">RAG 与数据库产物</text>
+  <text x="220" y="497" class="t">• rag_documents：6 条知识文档记录</text>
+  <text x="220" y="527" class="t">• 1536 维 embedding 与 HNSW 索引</text>
+  <text x="220" y="557" class="t">• top_k sources、similarity、rerank_score</text>
+  <text x="220" y="587" class="t">• 报告草稿、限制项与安全校验结果</text>
+  <text x="220" y="617" class="s">验证知识入库、检索重排和可追踪生成</text>
+
+  <rect x="750" y="420" width="470" height="230" rx="11" fill="#f2f6f8" class="box"/>
+  <text x="985" y="460" text-anchor="middle" class="h">测试与文档产物</text>
+  <text x="790" y="497" class="t">• Orchestrator 自动化测试：28 passed</text>
+  <text x="790" y="527" class="t">• Filter 与 LesionDetection 测试结果</text>
+  <text x="790" y="557" class="t">• README、API_CONTRACT、接入记录</text>
+  <text x="790" y="587" class="t">• Spring Boot 客户端示例与开发指导</text>
+  <text x="790" y="617" class="s">验证接口行为、异常路径和交付可维护性</text>
+
+  <text x="700" y="710" text-anchor="middle" class="s">代码、模型、数据库、运行结果、测试与文档共同构成可复核的阶段性证据链。</text>
+</svg>

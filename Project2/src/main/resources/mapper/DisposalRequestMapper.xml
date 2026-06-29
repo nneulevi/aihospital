@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.DisposalRequestMapper">
+
+    <resultMap id="DisposalRequestResultMap" type="DisposalRequest">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="medicalTechnologyId" column="medical_technology_id"/>
+        <result property="disposalInfo" column="disposal_info"/>
+        <result property="disposalPosition" column="disposal_position"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="disposalState" column="disposal_state"/>
+        <result property="disposalResult" column="disposal_result"/>
+        <result property="disposalEmployeeId" column="disposal_employee_id"/>
+    </resultMap>
+
+    <select id="selectByRegisterId" resultMap="DisposalRequestResultMap">
+        SELECT dr.*, mt.tech_name, mt.tech_price
+        FROM disposal_request dr
+                 LEFT JOIN medical_technology mt ON dr.medical_technology_id = mt.id
+        WHERE dr.register_id = #{registerId}
+        ORDER BY dr.creation_time DESC
+    </select>
+
+    <update id="updateResult">
+        UPDATE disposal_request
+        SET disposal_result = #{disposalResult},
+            disposal_employee_id = #{disposalEmployeeId},
+            disposal_state = 'COMPLETED',
+            disposal_time = CURRENT_TIMESTAMP,
+            disposal_remark = #{disposalRemark}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateState">
+        UPDATE disposal_request
+        SET disposal_state = #{disposalState}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateExecute">
+        UPDATE disposal_request
+        SET disposal_state = 'EXECUTING',
+            disposal_employee_id = #{disposalEmployeeId},
+            disposal_time = CURRENT_TIMESTAMP,
+            disposal_remark = #{disposalRemark}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

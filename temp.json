@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "my-coffee": {
+      "type": "streamablehttp",
+      "url": "https://gwmcp.lkcoffee.com/order/user/mcp",
+      "headers": {
+        "Authorization": "Bearer 133292fd27b34c4f89598b5e86873c645mcpLUCKIN_MCP_AI"
+      }
+    }
+  }
+}

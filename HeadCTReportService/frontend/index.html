@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>头部 CT 检查报告工作台</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>头部 CT 检查报告</h1>
+      <p id="serviceStatus">服务状态检查中</p>
+    </div>
+    <div class="identity">
+      <label>医生 ID<input id="actorId" value="doctor-001"></label>
+      <label>当前角色
+        <select id="actorRole">
+          <option value="reporting_doctor">报告医生</option>
+          <option value="reviewing_doctor">审核医生</option>
+          <option value="signing_doctor">签署医生</option>
+          <option value="administrator">管理员</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="worklist">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">工作列表</span>
+          <strong id="reportCount">0 项</strong>
+        </div>
+        <button id="refreshButton" type="button">刷新</button>
+      </div>
+      <div class="filters">
+        <label>状态
+          <select id="statusFilter">
+            <option value="">全部</option>
+            <option value="draft">草稿</option>
+            <option value="pending_review">待审核</option>
+            <option value="revision_required">待修订</option>
+            <option value="approved">已通过</option>
+            <option value="signed">已签署</option>
+            <option value="released">已发布</option>
+          </select>
+        </label>
+      </div>
+      <div id="reportList" class="report-list" aria-live="polite"></div>
+    </aside>
+
+    <section class="report-editor">
+      <div id="emptyState" class="empty-state">
+        <strong>请选择一份检查报告</strong>
+        <span>工作列表会显示报告状态、检查号和当前版本。</span>
+      </div>
+
+      <div id="reportContent" hidden>
+        <div class="report-heading">
+          <div>
+            <span class="eyebrow" id="accessionLabel">检查报告</span>
+            <h2 id="patientTitle">-</h2>
+            <p id="studyMeta">-</p>
+          </div>
+          <div class="status-block">
+            <span id="deploymentBadge" class="mode-badge">开发环境</span>
+            <span id="statusBadge" class="status-badge">草稿</span>
+          </div>
+        </div>
+
+        <div id="safetyBanner" class="safety-banner">
+          AI 内容仅供辅助，正式报告必须由医生审核并签署。
+        </div>
+
+        <div class="editor-grid">
+          <div class="field-group">
+            <label for="findings">影像所见</label>
+            <textarea id="findings" rows="10"></textarea>
+          </div>
+          <div class="field-group">
+            <label for="impression">诊断意见</label>
+            <textarea id="impression" rows="7"></textarea>
+          </div>
+          <div class="field-group full-width">
+            <label for="recommendations">建议与局限性</label>
+            <textarea id="recommendations" rows="5"></textarea>
+          </div>
+        </div>
+
+        <div class="actionbar">
+          <button id="saveButton" class="primary" type="button">保存新版本</button>
+          <button id="submitButton" type="button">提交审核</button>
+          <button id="approveButton" type="button">审核通过</button>
+          <button id="revisionButton" type="button">退回修订</button>
+          <button id="signButton" type="button">签署</button>
+          <button id="releaseButton" type="button">发布</button>
+        </div>
+
+        <div class="detail-tabs" role="tablist">
+          <button class="tab active" data-tab="ai" type="button">AI 分析</button>
+          <button class="tab" data-tab="references" type="button">知识引用</button>
+          <button class="tab" data-tab="versions" type="button">版本</button>
+          <button class="tab" data-tab="audit" type="button">审计</button>
+        </div>
+        <div id="detailPanel" class="detail-panel"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
+

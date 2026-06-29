@@ -1,0 +1,584 @@
+### ========================================
+### 智慧云脑诊疗平台 - API测试集合
+### 使用说明：
+###   1. 数据库已包含基础数据（患者、医生、挂号记录等）
+###   2. 先执行"登录"请求，获取token
+###   3. token会自动保存，无需手动粘贴
+###   4. 按顺序从上到下执行请求
+### ========================================
+
+### ---- 环境变量 ----
+@outpatient = http://localhost:8092
+@drugstore = http://localhost:8092
+@ai = http://localhost:8092
+@token =
+@newRegisterId =
+
+### ========================================
+### 1. 健康检查
+### ========================================
+
+### 1-1. 健康检查 - 门诊模块
+GET {{outpatient}}/outpatient/actuator/health
+
+### 1-2. 健康检查 - 药库模块
+GET {{drugstore}}/drugstore/actuator/health
+
+### 1-3. 健康检查 - AI模块
+GET {{ai}}/ai/actuator/health
+
+### ========================================
+### 2. 查询可挂号医生
+### 注意：数据库中有 scheduling 表，日期为 2026-05-23
+### ========================================
+
+GET {{outpatient}}/outpatient/api/patient/doctors?deptId=1&visitDate=2026-05-23&noon=上午&pageNum=1&pageSize=10
+
+### ========================================
+### 3. 登录
+### ========================================
+
+### 3-1. 登录 - 医生登录成功（使用 realname 匹配数据库）
+# @name login
+POST {{outpatient}}/outpatient/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "张建国",
+  "password": "123456",
+  "loginType": "DOCTOR"
+}
+
+> {%
+    if (response.status === 200 && response.body.code === 200) {
+        client.global.set("token", response.body.data.token);
+        client.log("Token已保存");
+    }
+%}
+
+### 3-2. 登录 - 密码错误
+POST {{outpatient}}/outpatient/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "张建国",
+  "password": "wrongpassword",
+  "loginType": "DOCTOR"
+}
+
+### ========================================
+### 4. 挂号 - 新增挂号
+### ========================================
+
+### 4-1. 挂号 - 正常挂号（使用数据库 patient 表字段）
+# @name register
+POST {{outpatient}}/outpatient/api/patient/register
+Content-Type: application/json
+
+{
+  "caseNumber": "HN202600001",
+  "realName": "张三",
+  "gender": "男",
+  "cardNumber": "11010119900307663X",
+  "birthdate": "1990-03-07",
+  "phone": "13912345678",
+  "homeAddress": "北京市朝阳区XX路1号",
+  "deptId": 1,
+  "doctorId": 1,
+  "visitDate": "2026-05-23",
+  "noon": "上午",
+  "registLevelId": 1,
+  "settleCategoryId": 2,
+  "registMethod": "微信"
+}
+
+> {%
+    if (response.status === 200 && response.body.code === 200) {
+        client.global.set("newRegisterId", response.body.data);
+        client.log("新挂号ID已保存: " + response.body.data);
+    }
+%}
+
+### 4-2. 挂号 - 姓名为空（参数校验）
+POST {{outpatient}}/outpatient/api/patient/register
+Content-Type: application/json
+
+{
+  "realName": "",
+  "gender": "男",
+  "cardNumber": "11010119900307663X",
+  "birthdate": "1990-03-07",
+  "homeAddress": "北京市",
+  "deptId": 1,
+  "doctorId": 1,
+  "visitDate": "2026-05-23",
+  "noon": "上午",
+  "registLevelId": 1,
+  "settleCategoryId": 2
+}
+
+### 4-3. 挂号 - 身份证号格式错误
+POST {{outpatient}}/outpatient/api/patient/register
+Content-Type: application/json
+
+{
+  "realName": "张三",
+  "gender": "男",
+  "cardNumber": "123456",
+  "birthdate": "1990-03-07",
+  "homeAddress": "北京市",
+  "deptId": 1,
+  "doctorId": 1,
+  "visitDate": "2026-05-23",
+  "noon": "上午",
+  "registLevelId": 1,
+  "settleCategoryId": 2
+}
+
+### ========================================
+### 5. 病历列表 - 使用已存在的患者ID=1
+### ========================================
+
+GET {{outpatient}}/outpatient/api/patient/records?patientId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 6. 病历详情 - 使用已存在的挂号ID=1
+### ========================================
+
+GET {{outpatient}}/outpatient/api/patient/records/1
+Authorization: Bearer {{token}}
+
+### ========================================
+### 7. 医生待诊列表 - 医生ID=1（张建国）
+### ========================================
+
+GET {{outpatient}}/outpatient/api/doctor/patients?doctorId=1&visitState=REGISTERED&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 8. 保存病历 - 使用已存在的挂号ID=1
+### ========================================
+
+### 8-1. 保存病历 - 正常保存（匹配 medical_record 表字段）
+POST {{outpatient}}/outpatient/api/doctor/medical-record
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "readme": "头痛头晕3天",
+  "present": "患者3天前无明显诱因出现头痛、头晕，呈阵发性",
+  "presentTreat": "未治疗",
+  "history": "高血压病史5年",
+  "allergy": "无",
+  "physique": "BP 140/90mmHg，神清",
+  "proposal": "头颅CT检查",
+  "careful": "避免劳累",
+  "diagnosis": "高血压病"
+}
+
+### 8-2. 保存病历 - registerId不存在
+POST {{outpatient}}/outpatient/api/doctor/medical-record
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 99999,
+  "readme": "测试",
+  "present": "测试",
+  "history": "无",
+  "allergy": "无",
+  "physique": "正常",
+  "proposal": "无",
+  "careful": "无",
+  "diagnosis": "测试"
+}
+
+### ========================================
+### 9. AI诊断建议 - 使用已存在的病历ID=1
+### ========================================
+
+POST {{ai}}/ai/api/ai/diagnosis/suggest
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "medicalRecordId": 1,
+  "symptoms": "头痛头晕",
+  "history": "高血压",
+  "physique": "BP140/90"
+}
+
+### ========================================
+### 10. 开检查申请 - 使用已存在的挂号ID=1
+### ========================================
+
+### 10-1. 开检查 - 正常开立（匹配 check_request 表字段）
+POST {{outpatient}}/outpatient/api/doctor/check-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "items": [
+    {
+      "medicalTechnologyId": 1,
+      "checkInfo": "头颅CT平扫",
+      "checkPosition": "头部"
+    }
+  ]
+}
+
+### 10-2. 开检查 - 未接诊患者
+POST {{outpatient}}/outpatient/api/doctor/check-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 99999,
+  "items": [
+    {
+      "medicalTechnologyId": 1,
+      "checkInfo": "测试",
+      "checkPosition": "头部"
+    }
+  ]
+}
+
+### ========================================
+### 11. AI影像上传 - 使用存在的checkRequestId=1
+### ========================================
+
+POST {{ai}}/api/ai/image/upload?checkRequestId=1&registerId=6
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Bearer {{token}}
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="sample_head_ct.nii.gz"
+Content-Type: application/octet-stream
+
+< ./test-files/sample_head_ct.nii.gz
+--WebAppBoundary--
+
+### ========================================
+### 12. AI影像分析
+### ========================================
+
+POST {{ai}}/api/ai/image/analyze
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "imageFileId": 1,
+  "checkRequestId": 1
+}
+
+### ========================================
+### 13. AI生成报告
+### ========================================
+
+POST {{ai}}/api/ai/report/generate
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "checkRequestId": 1,
+  "reportType": "CHECK",
+  "rawData": "CT影像原始数据"
+}
+
+### ========================================
+### 14. 开检验申请（匹配 inspection_request 表）
+### ========================================
+
+POST {{outpatient}}/outpatient/api/doctor/inspection-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "items": [
+    {
+      "medicalTechnologyId": 4,
+      "inspectionInfo": "血常规检查",
+      "inspectionPosition": "静脉血"
+    }
+  ]
+}
+
+### ========================================
+### 15. 开处置申请（匹配 disposal_request 表）
+### ========================================
+
+POST {{outpatient}}/outpatient/api/doctor/disposal-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "items": [
+    {
+      "medicalTechnologyId": 6,
+      "disposalInfo": "换药处理",
+      "disposalPosition": "头部"
+    }
+  ]
+}
+
+### ========================================
+### 16. 开处方
+### ========================================
+
+### 16-1. 开处方 - 正常开立（匹配 prescription 和 prescription_detail 表）
+# @name prescription
+POST {{outpatient}}/outpatient/api/doctor/prescription
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "doctorId": 1,
+  "items": [
+    {
+      "drugId": 1,
+      "usageRoute": "口服",
+      "frequency": "每日一次",
+      "dosage": "100mg",
+      "singleDose": "1片",
+      "useDays": 30,
+      "drugNumber": 1
+    }
+  ]
+}
+
+### 16-2. 开处方 - 药品数量超库存
+POST {{outpatient}}/outpatient/api/doctor/prescription
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "doctorId": 1,
+  "items": [
+    {
+      "drugId": 1,
+      "usageRoute": "口服",
+      "frequency": "每日一次",
+      "dosage": "100mg",
+      "singleDose": "1片",
+      "useDays": 7,
+      "drugNumber": 9999
+    }
+  ]
+}
+
+### ========================================
+### 17. 门诊确诊
+### ========================================
+
+PUT {{outpatient}}/outpatient/api/doctor/diagnosis/confirm
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "diagnosis": "高血压病",
+  "cure": "口服降压药，定期监测血压",
+  "diseaseIds": [2]
+}
+
+### ========================================
+### 18. 查看检查结果
+### ========================================
+
+GET {{outpatient}}/outpatient/api/doctor/check-results/1
+Authorization: Bearer {{token}}
+
+### ========================================
+### 19. 收费
+### ========================================
+
+### 19-1. 收费 - 正常收费
+POST {{outpatient}}/outpatient/api/admin/finance/charge
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "itemIds": [1],
+  "chargeMethod": "微信",
+  "amount": 70.50
+}
+
+### 19-2. 收费 - 金额不匹配
+POST {{outpatient}}/outpatient/api/admin/finance/charge
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 1,
+  "itemIds": [1],
+  "chargeMethod": "微信",
+  "amount": 1.00
+}
+
+### ========================================
+### 20. 费用记录查询
+### ========================================
+
+GET {{outpatient}}/outpatient/api/admin/finance/records?pageNum=1&pageSize=10&startDate=2026-05-01&endDate=2026-06-10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 21. 日结统计
+### ========================================
+
+GET {{outpatient}}/outpatient/api/admin/finance/daily-summary?summaryDate=2026-05-25
+Authorization: Bearer {{token}}
+
+### ========================================
+### 22. 发药
+### ========================================
+
+### 22-1. 发药 - 正常发药
+POST {{outpatient}}/outpatient/api/admin/drug/dispense
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 1,
+  "pharmacistId": 1
+}
+
+### 22-2. 发药 - 未缴费处方
+POST {{outpatient}}/outpatient/api/admin/drug/dispense
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 99999,
+  "pharmacistId": 1
+}
+
+### ========================================
+### 23. 退药
+### ========================================
+
+POST {{outpatient}}/outpatient/api/admin/drug/refund
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 1,
+  "pharmacistId": 1,
+  "refundReason": "药品过敏"
+}
+
+### ========================================
+### 24. 药品库存查询
+### ========================================
+
+GET {{outpatient}}/outpatient/api/admin/drug/inventory?pageNum=1&pageSize=10&stockAlert=0
+Authorization: Bearer {{token}}
+
+### ========================================
+### 25. AI问诊
+### ========================================
+
+### 25-1. AI问诊 - 正常症状
+POST {{ai}}/ai/api/ai/consultation/triage
+Content-Type: application/json
+
+{
+  "symptoms": "头痛头晕恶心",
+  "patientId": 1
+}
+
+### 25-2. AI问诊 - 空症状
+POST {{ai}}/ai/api/ai/consultation/triage
+Content-Type: application/json
+
+{
+  "symptoms": "",
+  "patientId": 1
+}
+
+### ========================================
+### 26. AI排班生成
+### ========================================
+
+POST {{ai}}/ai/api/ai/schedule/generate
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "deptId": 1,
+  "startDate": "2026-05-24",
+  "endDate": "2026-05-30"
+}
+
+### ========================================
+### 27. 排班结果查询
+### ========================================
+
+GET {{ai}}/ai/api/ai/schedule/result?deptId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+GET {{ai}}/ai/api/ai/schedule/result?deptId=1&pageNum=1&pageSize=50
+Authorization: Bearer {{token}}
+
+### ========================================
+### 28. 缴费项目查询
+### ========================================
+
+GET {{outpatient}}/outpatient/api/patient/orders?patientId=1&orderState=UNPAID&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 29. 退号
+### ========================================
+POST {{outpatient}}/outpatient/api/patient/register
+Content-Type: application/json
+
+{
+  "realName": "李四",
+  "gender": "女",
+  "cardNumber": "110101198505121234",
+  "birthdate": "1985-05-12",
+  "homeAddress": "上海市浦东新区XX路2号",
+  "phone": "13987654321",
+  "deptId": 1,
+  "doctorId": 1,
+  "visitDate": "2026-05-23",
+  "noon": "上午",
+  "registLevelId": 1,
+  "settleCategoryId": 1,
+  "registMethod": "微信"
+}
+### 29-1. 退号 - 正常退号（使用新创建的挂号）
+PUT {{outpatient}}/outpatient/api/patient/register/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 7,
+  "cancelReason": "临时有事"
+}
+
+### 29-2. 退号 - 已开检查不可退（使用已开检查的挂号ID=1）
+PUT {{outpatient}}/outpatient/api/patient/register/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 1,
+  "cancelReason": "测试"
+}
+
+### ========================================
+### 30. 退出登录
+### ========================================
+
+POST {{outpatient}}/outpatient/api/auth/logout
+Authorization: Bearer {{token}}
