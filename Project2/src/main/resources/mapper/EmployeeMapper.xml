@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.EmployeeMapper">
+
+    <select id="selectByRole" resultType="com.neuedu.his.model.entity.Employee">
+        SELECT * FROM employee
+        WHERE delmark = TRUE
+        AND role_type = #{roleType}
+        <if test="deptId != null">AND deptment_id = #{deptId}</if>
+        ORDER BY realname
+    </select>
+
+    <select id="selectDetailById" resultType="com.neuedu.his.model.entity.Employee">
+        SELECT e.*, d.dept_name as deptName
+        FROM employee e
+                 LEFT JOIN department d ON e.deptment_id = d.id
+        WHERE e.id = #{id}
+          AND e.delmark = TRUE
+    </select>
+
+    <update id="updateById">
+        UPDATE employee
+        SET realname = #{realname},
+            title_level = #{titleLevel},
+            phone = #{phone},
+            email = #{email},
+            deptment_id = #{deptmentId},
+            role_type = #{roleType},
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+</mapper>

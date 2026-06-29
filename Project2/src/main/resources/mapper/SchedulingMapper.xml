@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.SchedulingMapper">
+
+    <!-- 查询医生排班列表 -->
+    <select id="selectDoctorList" resultType="com.neuedu.his.model.vo.DoctorListVO">
+        SELECT e.id AS doctorId,
+        e.realname AS doctorName,
+        e.title_level AS titleLevel,
+        s.schedule_date AS scheduleDate,
+        s.noon AS noon,
+        s.regist_quota AS registQuota,
+        d.dept_name AS deptName,
+        rl.regist_fee AS registFee
+        FROM scheduling s
+        LEFT JOIN employee e ON s.employee_id = e.id
+        LEFT JOIN department d ON s.deptment_id = d.id
+        LEFT JOIN regist_level rl ON e.regist_level_id = rl.id
+        WHERE s.deptment_id = #{deptId}
+        AND s.schedule_date = #{visitDate}
+        AND s.schedule_status = 'ACTIVE'
+        <if test='noon != null and noon != ""'>
+            AND s.noon = #{noon}
+        </if>
+        ORDER BY e.id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 统计医生排班总数 -->
+    <select id="countDoctorList" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM scheduling s
+        WHERE s.deptment_id = #{deptId}
+        AND s.schedule_date = #{visitDate}
+        AND s.schedule_status = 'ACTIVE'
+        <if test='noon != null and noon != ""'>
+            AND s.noon = #{noon}
+        </if>
+    </select>
+
+    <select id="selectByCondition" resultType="com.neuedu.his.model.entity.Scheduling">
+        SELECT * FROM scheduling
+        WHERE 1=1
+        <if test="deptId != null">AND deptment_id = #{deptId}</if>
+        <if test="employeeId != null">AND employee_id = #{employeeId}</if>
+        <if test="startDate != null">AND schedule_date &gt;= #{startDate}</if>
+        <if test="endDate != null">AND schedule_date &lt;= #{endDate}</if>
+        ORDER BY schedule_date, noon
+    </select>
+
+    <select id="selectAvailableDoctors" resultType="com.neuedu.his.model.entity.Scheduling">
+        SELECT s.*, e.realname as doctorName, e.title_level
+        FROM scheduling s
+                 JOIN employee e ON s.employee_id = e.id
+        WHERE s.deptment_id = #{deptId}
+          AND s.schedule_date = #{scheduleDate}
+          AND s.noon = #{noon}
+          AND s.schedule_status = 'NORMAL'
+          AND e.delmark = TRUE
+    </select>
+
+</mapper>

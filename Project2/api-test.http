@@ -1,0 +1,814 @@
+### ========================================
+### 智慧云脑诊疗平台 - API测试集合（合并后版本）
+### ========================================
+
+### ---- 环境变量 ----
+@baseUrl = http://localhost:8092
+@token =
+@newRegisterId =
+@patientToken =
+
+### ========================================
+### 患者注册登录测试（协和模式）
+### ========================================
+
+### 1. 发送注册验证码
+POST {{baseUrl}}/api/patient/send-code
+Content-Type: application/json
+
+{
+  "phone": "13912345678",
+  "codeType": "REGISTER"
+}
+
+
+### 2. 添加就诊人（注册 + 自动登录）
+# @name authRegister
+POST {{baseUrl}}/api/patient/auth/register
+Content-Type: application/json
+
+{
+  "realName": "张三",
+  "cardNumber": "11010119900307663X",
+  "phone": "13912345678",
+  "code": "062632",
+  "gender": "男",
+  "birthdate": "1990-03-07",
+  "homeAddress": "北京市朝阳区XX路1号"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("patientToken", response.body.token);
+        client.log("患者Token已保存: " + response.body.token.substring(0, 30) + "...");
+        client.log("就诊卡号: " + response.body.caseNumber);
+        client.log("患者ID: " + response.body.patientId);
+    }
+%}
+
+
+### 3. 查看就诊人列表（需要token）
+GET {{baseUrl}}/api/patient/list
+Authorization: Bearer {{patientToken}}
+
+### 3. 查看就诊人列表（需要token）
+GET {{baseUrl}}/api/patient/list
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlVHlwZSI6IlBBVElFTlQiLCJ1c2VySWQiOjEsInVzZXJuYW1lIjoidXNlcl8xIiwic3ViIjoidXNlcl8xIiwiaWF0IjoxNzgxNzUwMzU0LCJleHAiOjE3ODE4MzY3NTR9.75gUp-NgH_9IWs4rYn2vO3GjfFQcaWKhRarfFBh27co
+### 4. 切换就诊人
+
+
+POST {{baseUrl}}/api/patient/switch?patientId=1
+Authorization: Bearer {{patientToken}}
+
+
+### 5. 患者退出登录
+POST {{baseUrl}}/api/patient/logout
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlVHlwZSI6IlBBVElFTlQiLCJ1c2VySWQiOjEsInVzZXJuYW1lIjoidXNlcl8xIiwic3ViIjoidXNlcl8xIiwiaWF0IjoxNzgxNzUwMzU0LCJleHAiOjE3ODE4MzY3NTR9.75gUp-NgH_9IWs4rYn2vO3GjfFQcaWKhRarfFBh27co
+
+
+
+
+
+
+
+
+
+
+
+
+### ========================================
+### 1. 健康检查
+### ========================================
+
+GET {{baseUrl}}/actuator/health
+
+### ========================================
+### 2. 查询可挂号医生
+### ========================================
+
+GET {{baseUrl}}/api/patient/doctors?deptId=1&visitDate=2026-05-23&noon=上午&pageNum=1&pageSize=10
+
+### ========================================
+### 3. 登录
+### ========================================
+
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "张建国",
+  "password": "123456",
+  "loginType": "DOCTOR"
+}
+
+> {%
+    if (response.status === 200 && response.body.code === 200) {
+        client.global.set("token", response.body.data.token);
+        client.log("Token已保存");
+    }
+%}
+
+### ========================================
+### 4. 挂号
+### ========================================
+
+# @name register
+POST {{baseUrl}}/api/patient/register
+Content-Type: application/json
+
+{
+  "caseNumber": "HN202600001",
+  "realName": "张三",
+  "gender": "男",
+  "cardNumber": "11010119900307663X",
+  "birthdate": "1990-03-07",
+  "phone": "13912345678",
+  "homeAddress": "北京市朝阳区XX路1号",
+  "deptId": 1,
+  "doctorId": 1,
+  "visitDate": "2026-05-23",
+  "noon": "上午",
+  "registLevelId": 1,
+  "settleCategoryId": 2,
+  "registMethod": "微信"
+}
+
+> {%
+    if (response.status === 200 && response.body.code === 200) {
+        client.global.set("newRegisterId", response.body.data);
+        client.log("新挂号ID已保存: " + response.body.data);
+    }
+%}
+
+### ========================================
+### 5. 病历列表
+### ========================================
+
+GET {{baseUrl}}/api/patient/records?patientId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 6. 病历详情
+### ========================================
+
+GET {{baseUrl}}/api/patient/records/1
+Authorization: Bearer {{token}}
+
+### ========================================
+### 7. 医生待诊列表
+### ========================================
+
+GET {{baseUrl}}/api/doctor/patients?doctorId=1&visitState=REGISTERED&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 8. 保存病历
+### ========================================
+
+POST {{baseUrl}}/api/doctor/medical-record
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "readme": "头痛头晕3天",
+  "present": "患者3天前无明显诱因出现头痛、头晕，呈阵发性",
+  "presentTreat": "未治疗",
+  "history": "高血压病史5年",
+  "allergy": "无",
+  "physique": "BP 140/90mmHg，神清",
+  "proposal": "头颅CT检查",
+  "careful": "避免劳累",
+  "diagnosis": "高血压病"
+}
+
+### ========================================
+### 9. AI诊断建议
+### ========================================
+
+POST {{baseUrl}}/api/ai/diagnosis/suggest
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "medicalRecordId": 1,
+  "symptoms": "头痛头晕",
+  "history": "高血压",
+  "physique": "BP140/90"
+}
+
+### ========================================
+### 10. 开检查申请
+### ========================================
+
+POST {{baseUrl}}/api/doctor/check-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "items": [
+    {
+      "medicalTechnologyId": 1,
+      "checkInfo": "头颅CT平扫",
+      "checkPosition": "头部"
+    }
+  ]
+}
+
+### ========================================
+### 11. AI影像上传
+### ========================================
+
+POST {{baseUrl}}/api/ai/image/upload?checkRequestId=1&registerId=6
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Bearer {{token}}
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="ct_test.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/ct_test.jpg
+--WebAppBoundary--
+
+### ========================================
+### 12. AI影像分析
+### ========================================
+
+POST {{baseUrl}}/api/ai/image/analyze
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "imageFileId": 1,
+  "checkRequestId": 1
+}
+
+### ========================================
+### 13. AI生成报告
+### ========================================
+
+POST {{baseUrl}}/api/ai/report/generate
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "checkRequestId": 1,
+  "reportType": "CHECK",
+  "rawData": "CT影像原始数据"
+}
+
+### ========================================
+### 14. 开检验申请
+### ========================================
+
+POST {{baseUrl}}/api/doctor/inspection-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "items": [
+    {
+      "medicalTechnologyId": 4,
+      "inspectionInfo": "血常规检查",
+      "inspectionPosition": "静脉血"
+    }
+  ]
+}
+
+### ========================================
+### 15. 开处置申请
+### ========================================
+
+POST {{baseUrl}}/api/doctor/disposal-request
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "items": [
+    {
+      "medicalTechnologyId": 6,
+      "disposalInfo": "换药处理",
+      "disposalPosition": "头部"
+    }
+  ]
+}
+
+### ========================================
+### 16. 开处方
+### ========================================
+
+# @name prescription
+POST {{baseUrl}}/api/doctor/prescription
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "doctorId": 1,
+  "items": [
+    {
+      "drugId": 1,
+      "usageRoute": "口服",
+      "frequency": "每日一次",
+      "dosage": "100mg",
+      "singleDose": "1片",
+      "useDays": 30,
+      "drugNumber": 1
+    }
+  ]
+}
+
+### ========================================
+### 17. 门诊确诊
+### ========================================
+
+PUT {{baseUrl}}/api/doctor/diagnosis/confirm
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "diagnosis": "高血压病",
+  "cure": "口服降压药，定期监测血压",
+  "diseaseIds": [2]
+}
+
+### ========================================
+### 18. 查看检查结果
+### ========================================
+
+GET {{baseUrl}}/api/doctor/check-results/1
+Authorization: Bearer {{token}}
+
+### ========================================
+### 19. 收费
+### ========================================
+
+POST {{baseUrl}}/api/admin/finance/charge
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "itemIds": [1],
+  "chargeMethod": "微信",
+  "amount": 70.50
+}
+
+### ========================================
+### 20. 费用记录查询
+### ========================================
+
+GET {{baseUrl}}/api/admin/finance/records?pageNum=1&pageSize=10&startDate=2026-05-01&endDate=2026-06-10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 21. 日结统计
+### ========================================
+
+GET {{baseUrl}}/api/admin/finance/daily-summary?summaryDate=2026-05-25
+Authorization: Bearer {{token}}
+
+### ========================================
+### 22. 发药
+### ========================================
+
+POST {{baseUrl}}/api/admin/drug/dispense
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 1,
+  "pharmacistId": 1
+}
+
+### ========================================
+### 23. 退药
+### ========================================
+
+POST {{baseUrl}}/api/admin/drug/refund
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 1,
+  "pharmacistId": 1,
+  "refundReason": "药品过敏"
+}
+
+### ========================================
+### 24. 药品库存查询
+### ========================================
+
+GET {{baseUrl}}/api/admin/drug/inventory?pageNum=1&pageSize=10&stockAlert=0
+Authorization: Bearer {{token}}
+
+### ========================================
+### 25. AI问诊
+### ========================================
+
+POST {{baseUrl}}/api/ai/consultation/triage
+Content-Type: application/json
+
+{
+  "symptoms": "头痛头晕恶心",
+  "patientId": 1
+}
+
+### ========================================
+### 26. AI排班生成
+### ========================================
+
+POST {{baseUrl}}/api/ai/schedule/generate
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "deptId": 1,
+  "startDate": "2026-05-24",
+  "endDate": "2026-05-30"
+}
+
+### ========================================
+### 27. 排班结果查询
+### ========================================
+
+GET {{baseUrl}}/api/ai/schedule/result?deptId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 28. 缴费项目查询
+### ========================================
+
+GET {{baseUrl}}/api/patient/orders?patientId=1&orderState=UNPAID&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### ========================================
+### 29. 退号
+### ========================================
+
+PUT {{baseUrl}}/api/patient/register/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 7,
+  "cancelReason": "临时有事"
+}
+
+### ========================================
+### 30. 退出登录
+### ========================================
+
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{token}}
+
+
+
+### ========================================
+### 医生/管理员验证码登录测试
+### ========================================
+
+### 6. 发送医生登录验证码
+# 注意：phone 必须是 employee 表中已存在的手机号
+POST {{baseUrl}}/api/auth/send-code
+Content-Type: application/json
+
+{
+  "phone": "13800138001",
+  "codeType": "DOCTOR_LOGIN"
+}
+
+### 7. 医生验证码登录
+# @name doctorLoginByCode
+POST {{baseUrl}}/api/auth/login-by-code
+Content-Type: application/json
+
+{
+  "phone": "13800138001",
+  "verifyCode": "170744",
+  "loginType": "DOCTOR"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("token", response.body.token);
+        client.log("医生Token已保存: " + response.body.token.substring(0, 30) + "...");
+        client.log("医生姓名: " + response.body.realname);
+        client.log("角色: " + response.body.roleType);
+        client.log("科室ID: " + response.body.deptId);
+    }
+%}
+
+### 8. 发送管理员登录验证码
+POST {{baseUrl}}/api/auth/send-code
+Content-Type: application/json
+
+{
+  "phone": "13800138004",
+  "codeType": "ADMIN_LOGIN"
+}
+
+### 9. 管理员验证码登录
+# @name adminLoginByCode
+POST {{baseUrl}}/api/auth/login-by-code
+Content-Type: application/json
+
+{
+  "phone": "13800138004",
+  "verifyCode": "634756",
+  "loginType": "ADMIN"
+}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("adminToken", response.body.token);
+        client.log("管理员Token已保存: " + response.body.token.substring(0, 30) + "...");
+        client.log("管理员姓名: " + response.body.realname);
+        client.log("角色: " + response.body.roleType);
+    }
+%}
+
+### 10. 验证码登录 - 手机号未注册（应返回400）
+POST {{baseUrl}}/api/auth/login-by-code
+Content-Type: application/json
+
+{
+  "phone": "13999999999",
+  "verifyCode": "123456",
+  "loginType": "DOCTOR"
+}
+
+### 11. 验证码登录 - 验证码错误（应返回400）
+POST {{baseUrl}}/api/auth/login-by-code
+Content-Type: application/json
+
+{
+  "phone": "13800138001",
+  "verifyCode": "000000",
+  "loginType": "DOCTOR"
+}
+
+### 12. 验证码登录 - 角色权限不符（应返回400）
+# 假设 13800138001 的角色是 DOCTOR，但用 ADMIN 登录
+POST {{baseUrl}}/api/auth/login-by-code
+Content-Type: application/json
+
+{
+  "phone": "13800138001",
+  "verifyCode": "123456",
+  "loginType": "ADMIN"
+}
+
+
+### ========================================
+### 管理员端 - 新增接口测试
+### ========================================
+
+### 1. 获取所有科室列表
+GET {{baseUrl}}/api/admin/department/list
+Authorization: Bearer {{adminToken}}
+
+### 2. 获取所有职员列表
+GET {{baseUrl}}/api/admin/employee/list
+Authorization: Bearer {{adminToken}}
+
+### 3. 获取所有医生列表
+GET {{baseUrl}}/api/admin/employee/doctors
+Authorization: Bearer {{adminToken}}
+
+### 4. 创建医生档案
+POST {{baseUrl}}/api/admin/employee/create
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "realname": "赵敏",
+  "phone": "13800138006",
+  "password": "123456",
+  "roleType": "DOCTOR",
+  "deptmentId": 6,
+  "titleLevel": "主治医师",
+  "enabled": true
+}
+
+### 5. 创建管理员档案
+POST {{baseUrl}}/api/admin/employee/create
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "realname": "系统管理员C",
+  "phone": "13800138007",
+  "password": "123456",
+  "roleType": "ADMIN",
+  "deptmentId": null,
+  "titleLevel": "超级管理员",
+  "enabled": true
+}
+
+### 6. 医生统计（接诊量 + 复查率）
+GET {{baseUrl}}/api/admin/statistics/doctor
+Authorization: Bearer {{adminToken}}
+
+### 7. 部门统计
+GET {{baseUrl}}/api/admin/statistics/dept
+Authorization: Bearer {{adminToken}}
+
+
+### ========================================
+### 医生端 - 新增接口测试
+### ========================================
+
+### 1. 获取医生个人信息
+GET {{baseUrl}}/api/doctor/profile?doctorId=1
+Authorization: Bearer {{token}}
+
+### 2. 获取医生统计数据（今日/本月/累计接诊 + 待诊/就诊中/已完成）
+GET {{baseUrl}}/api/doctor/statistics?doctorId=1
+Authorization: Bearer {{token}}
+
+### 3. 获取检查结果详情（用于结果详情页）
+GET {{baseUrl}}/api/doctor/check-result/1
+Authorization: Bearer {{token}}
+
+### 4. 测试患者列表 - 待诊（验证 visitState 字段）
+GET {{baseUrl}}/api/doctor/patients?doctorId=1&visitState=REGISTERED&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### 5. 测试患者列表 - 就诊中
+GET {{baseUrl}}/api/doctor/patients?doctorId=1&visitState=CONSULTING&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### 6. 测试患者列表 - 已完成
+GET {{baseUrl}}/api/doctor/patients?doctorId=1&visitState=FINISHED&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### 7. 测试患者列表 - 全部状态
+GET {{baseUrl}}/api/doctor/patients?doctorId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{token}}
+
+
+
+### ========================================
+### 患者端 - 新增接口测试
+### ========================================
+
+### 1. 获取科室列表（患者端）
+GET {{baseUrl}}/api/patient/department/list
+Authorization: Bearer {{patientToken}}
+
+### 2. 获取今日可报到列表
+GET {{baseUrl}}/api/patient/register/today?patientId=1
+Authorization: Bearer {{patientToken}}
+
+### 3. 报到提交
+POST {{baseUrl}}/api/patient/checkin/submit
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "registerId": 1
+}
+
+### 4. 获取候诊状态
+GET {{baseUrl}}/api/patient/queue/status?registerId=1
+Authorization: Bearer {{patientToken}}
+
+### 5. 获取候诊科室列表
+GET {{baseUrl}}/api/patient/queue/depts?patientId=1
+Authorization: Bearer {{patientToken}}
+
+### 6. 获取候诊角标（前面还有多少人）
+GET {{baseUrl}}/api/patient/queue/count?patientId=1
+Authorization: Bearer {{patientToken}}
+
+### 7. 获取检验项目列表
+GET {{baseUrl}}/api/patient/medical-technology/inspection
+Authorization: Bearer {{patientToken}}
+
+### 8. 获取检查项目列表
+GET {{baseUrl}}/api/patient/medical-technology/check
+Authorization: Bearer {{patientToken}}
+
+### 9. 检验预约提交（患者端）
+POST {{baseUrl}}/api/patient/inspection-request
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "registerId": 1,
+  "patientId": 1,
+  "medicalTechnologyIds": [4, 5],
+  "bookedTime": "2026-07-01T09:00:00"
+}
+
+### 10. 检查预约提交（患者端）
+POST {{baseUrl}}/api/patient/check-request
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "registerId": 1,
+  "patientId": 1,
+  "medicalTechnologyIds": [1, 2],
+  "bookedTime": "2026-07-01T09:00:00"
+}
+
+### 11. 获取处方列表
+GET {{baseUrl}}/api/patient/prescriptions?patientId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 12. 获取处方列表（按状态筛选）
+GET {{baseUrl}}/api/patient/prescriptions?patientId=1&status=ACTIVE&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 13. 获取处方详情
+GET {{baseUrl}}/api/patient/prescriptions/1
+Authorization: Bearer {{patientToken}}
+
+### 14. 获取报告列表
+GET {{baseUrl}}/api/patient/reports?patientId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 15. 获取报告列表（按类型筛选）
+GET {{baseUrl}}/api/patient/reports?patientId=1&requestType=INSPECTION&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 16. 获取报告详情
+GET {{baseUrl}}/api/patient/reports/3
+Authorization: Bearer {{patientToken}}
+
+### 17. 标记报告已读
+PUT {{baseUrl}}/api/patient/reports/1/read
+Authorization: Bearer {{patientToken}}
+
+### 18. 获取当前患者信息
+GET {{baseUrl}}/api/patient/current
+Authorization: Bearer {{patientToken}}
+
+### 19. 获取挂号记录列表（按状态筛选）
+GET {{baseUrl}}/api/patient/records?patientId=1&visitState=REGISTERED&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 20. 获取挂号记录列表（全部）
+GET {{baseUrl}}/api/patient/records?patientId=1&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 21. 获取挂号记录详情
+GET {{baseUrl}}/api/patient/records/1
+Authorization: Bearer {{patientToken}}
+
+### 22. 获取医生排班列表
+GET {{baseUrl}}/api/patient/doctors?deptId=1&visitDate=2026-07-01&noon=上午&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 23. 获取订单列表（待缴费）
+GET {{baseUrl}}/api/patient/orders?patientId=1&orderState=UNPAID&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 24. 获取订单列表（已缴费）
+GET {{baseUrl}}/api/patient/orders?patientId=1&orderState=PAID&pageNum=1&pageSize=10
+Authorization: Bearer {{patientToken}}
+
+### 25. 挂号提交
+POST {{baseUrl}}/api/patient/register
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "patientId": 1,
+  "deptId": 1,
+  "doctorId": 1,
+  "visitDate": "2026-07-01",
+  "noon": "上午",
+  "registLevelId": 1,
+  "settleCategoryId": 1,
+  "registMethod": "在线预约"
+}
+
+### 26. 取消挂号
+PUT {{baseUrl}}/api/patient/register/cancel
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "registerId": 1,
+  "cancelReason": "临时有事"
+}
+
+
+
+
+
+
+
+
+
+
+
+

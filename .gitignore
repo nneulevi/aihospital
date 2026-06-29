@@ -3,13 +3,16 @@ frontend/node_modules/
 frontend/dist/
 frontend/build/
 frontend/.env
+frontend/.vscode/
+frontend/.idea/
 
 # 后端依赖 (Project2)
-Project2/node_modules/
-Project2/venv/
-Project2/__pycache__/
-Project2/.env
-Project2/*.pyc
+Project2/target/
+Project2/.mvn/
+Project2/.vscode/
+Project2/.idea/
+Project2/*.class
+Project2/*.log
 
 # 系统文件
 .DS_Store

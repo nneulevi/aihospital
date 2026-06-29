@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.SmsVerificationCodeMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sms_verification_code(phone, code, type, expired_at, used, created_at)
+        VALUES(#{phone}, #{code}, #{type}, #{expiredAt}, #{used}, #{createdAt})
+    </insert>
+
+    <update id="updateById">
+        UPDATE sms_verification_code
+        SET used = #{used}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findLatestValidCode" resultType="com.neuedu.his.model.entity.SmsVerificationCode">
+        SELECT * FROM sms_verification_code
+        WHERE phone = #{phone}
+          AND type = #{type}
+          AND used = FALSE
+          AND expired_at > CURRENT_TIMESTAMP
+        ORDER BY created_at DESC
+            LIMIT 1
+    </select>
+
+</mapper>

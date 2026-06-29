@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.PrescriptionMapper">
+
+    <resultMap id="PrescriptionResultMap" type="com.neuedu.his.model.entity.Prescription">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="doctorId" column="doctor_id"/>
+        <result property="prescriptionNo" column="prescription_no"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="prescriptionStatus" column="prescription_status"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="dispenseTime" column="dispense_time"/>
+        <result property="pharmacistId" column="pharmacist_id"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <!-- ==================== 原有查询 ==================== -->
+
+    <select id="selectByRegisterId" resultMap="PrescriptionResultMap">
+        SELECT p.*, pd.drug_id, pd.usage_route, pd.frequency, pd.single_dose, pd.use_days, pd.drug_number,
+               d.drug_name, d.drug_format as specification, d.drug_price as price
+        FROM prescription p
+                 LEFT JOIN prescription_detail pd ON p.id = pd.prescription_id
+                 LEFT JOIN drug_info d ON pd.drug_id = d.id
+        WHERE p.register_id = #{registerId}
+        ORDER BY p.creation_time DESC
+    </select>
+
+    <update id="updateStatusAndAmount">
+        UPDATE prescription
+        SET prescription_status = #{prescriptionStatus},
+            total_amount = #{totalAmount}
+        WHERE id = #{id}
+    </update>
+
+    <update id="dispense">
+        UPDATE prescription
+        SET prescription_status = 'DISPENSED',
+            pharmacist_id = #{pharmacistId},
+            dispense_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- ==================== 新增查询 ==================== -->
+
+    <!-- 查询处方列表 -->
+    <select id="selectPrescriptionList" resultType="com.neuedu.his.model.vo.PrescriptionListVO">
+        SELECT p.id AS id,
+        p.prescription_no AS prescriptionNo,
+        d.dept_name AS deptName,
+        e.realname AS doctorName,
+        pat.real_name AS patientName,
+        p.prescription_status AS status,
+        p.total_amount AS totalAmount,
+        p.creation_time AS creationTime
+        FROM prescription p
+        LEFT JOIN register r ON p.register_id = r.id
+        LEFT JOIN department d ON r.deptment_id = d.id
+        LEFT JOIN employee e ON p.doctor_id = e.id
+        LEFT JOIN patient pat ON r.patient_id = pat.id
+        WHERE r.patient_id = #{patientId}
+        <if test="status != null and status != ''">
+            AND p.prescription_status = #{status}
+        </if>
+        ORDER BY p.creation_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 统计处方总数 -->
+    <select id="countPrescriptionList" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM prescription p
+        LEFT JOIN register r ON p.register_id = r.id
+        WHERE r.patient_id = #{patientId}
+        <if test="status != null and status != ''">
+            AND p.prescription_status = #{status}
+        </if>
+    </select>
+
+    <!-- 查询药费订单 -->
+    <select id="selectDrugOrders" resultType="com.neuedu.his.model.vo.OrderListVO">
+        SELECT p.register_id AS registerId,
+        'DRUG' AS itemType,
+        '药品费' AS itemName,
+        p.id AS itemId,
+        p.total_amount AS amount,
+        p.prescription_status AS orderState,
+        d.dept_name AS deptName,
+        r.visit_date AS visitDate,
+        p.creation_time AS createTime,
+        p.dispense_time AS payTime
+        FROM prescription p
+        LEFT JOIN register r ON p.register_id = r.id
+        LEFT JOIN department d ON r.deptment_id = d.id
+        WHERE r.patient_id = #{patientId}
+        AND p.total_amount IS NOT NULL
+        AND p.total_amount > 0
+        <if test="orderState != null and orderState != ''">
+            AND p.prescription_status = #{orderState}
+        </if>
+        ORDER BY p.creation_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+</mapper>

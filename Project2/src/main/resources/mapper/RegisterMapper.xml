@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.RegisterMapper">
+
+    <resultMap id="RegisterResultMap" type="com.neuedu.his.model.entity.Register">
+        <id property="id" column="id"/>
+        <result property="visitNo" column="visit_no"/>
+        <result property="patientId" column="patient_id"/>
+        <result property="visitDate" column="visit_date"/>
+        <result property="noon" column="noon"/>
+        <result property="deptmentId" column="deptment_id"/>
+        <result property="employeeId" column="employee_id"/>
+        <result property="registLevelId" column="regist_level_id"/>
+        <result property="settleCategoryId" column="settle_category_id"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="queueNo" column="queue_no"/>
+        <result property="registMethod" column="regist_method"/>
+        <result property="registMoney" column="regist_money"/>
+        <result property="visitState" column="visit_state"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 查询患者挂号记录 -->
+    <select id="selectPatientRecords" resultType="com.neuedu.his.model.vo.PatientRecordListVO">
+        SELECT r.id AS registerId,
+        TO_CHAR(r.visit_date, 'YYYY-MM-DD') AS visitDate,
+        d.dept_name AS deptName,
+        e.realname AS doctorName,
+        mr.diagnosis AS diagnosis,
+        r.visit_state AS visitState,
+        CASE r.visit_state
+        WHEN 'REGISTERED' THEN '待就诊'
+        WHEN 'CONSULTING' THEN '就诊中'
+        WHEN 'FINISHED' THEN '已完成'
+        WHEN 'CANCELLED' THEN '已取消'
+        ELSE ''
+        END AS visitStateName,
+        r.noon AS noon,
+        r.queue_no AS queueNumber,
+        r.checkin_status AS checkinStatus,
+        rl.regist_fee AS registFee,
+        r.deptment_id AS deptId,
+        r.employee_id AS doctorId,
+        p.real_name AS patientName,
+        p.gender AS gender,
+        EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthdate))::INTEGER AS age,
+        mr.allergy AS allergyHistory,
+        p.case_number AS caseNumber
+        FROM register r
+        LEFT JOIN department d ON r.deptment_id = d.id
+        LEFT JOIN employee e ON r.employee_id = e.id
+        LEFT JOIN medical_record mr ON r.id = mr.register_id
+        LEFT JOIN regist_level rl ON r.regist_level_id = rl.id
+        LEFT JOIN patient p ON r.patient_id = p.id
+        WHERE r.patient_id = #{patientId}
+        <if test="visitState != null and visitState != ''">
+            AND r.visit_state = #{visitState}
+        </if>
+        ORDER BY r.visit_date DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 统计患者挂号记录总数 -->
+    <select id="countPatientRecords" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM register
+        WHERE patient_id = #{patientId}
+        <if test="visitState != null and visitState != ''">
+            AND visit_state = #{visitState}
+        </if>
+    </select>
+
+    <!-- 查询挂号详情（含患者信息、诊断等） -->
+    <select id="selectPatientRecordDetail" resultType="com.neuedu.his.model.vo.PatientRecordListVO">
+        SELECT r.id AS registerId,
+               TO_CHAR(r.visit_date, 'YYYY-MM-DD') AS visitDate,
+               d.dept_name AS deptName,
+               e.realname AS doctorName,
+               mr.diagnosis AS diagnosis,
+               r.visit_state AS visitState,
+               CASE r.visit_state
+                   WHEN 'REGISTERED' THEN '待就诊'
+                   WHEN 'CONSULTING' THEN '就诊中'
+                   WHEN 'FINISHED' THEN '已完成'
+                   WHEN 'CANCELLED' THEN '已取消'
+                   ELSE ''
+                   END AS visitStateName,
+               r.noon AS noon,
+               r.queue_no AS queueNumber,
+               r.checkin_status AS checkinStatus,
+               rl.regist_fee AS registFee,
+               r.deptment_id AS deptId,
+               r.employee_id AS doctorId,
+               p.real_name AS patientName,
+               p.gender AS gender,
+               EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthdate))::INTEGER AS age,
+                mr.allergy AS allergyHistory,
+               p.case_number AS caseNumber
+        FROM register r
+                 LEFT JOIN department d ON r.deptment_id = d.id
+                 LEFT JOIN employee e ON r.employee_id = e.id
+                 LEFT JOIN medical_record mr ON r.id = mr.register_id
+                 LEFT JOIN regist_level rl ON r.regist_level_id = rl.id
+                 LEFT JOIN patient p ON r.patient_id = p.id
+        WHERE r.id = #{registerId}
+    </select>
+
+    <!-- 查询今日可报到列表 -->
+    <select id="selectTodayRegisters" resultType="com.neuedu.his.model.vo.TodayRegisterVO">
+        SELECT r.id AS registerId,
+               d.dept_name AS deptName,
+               e.realname AS doctorName,
+               r.visit_date::date AS visitDate,
+                r.noon AS noon,
+               CONCAT(d.dept_name, '诊区') AS location,
+               p.real_name AS patientName,
+               r.checkin_status AS checkinStatus
+        FROM register r
+                 LEFT JOIN department d ON r.deptment_id = d.id
+                 LEFT JOIN employee e ON r.employee_id = e.id
+                 LEFT JOIN patient p ON r.patient_id = p.id
+        WHERE r.patient_id = #{patientId}
+          AND r.visit_date::date = #{today}
+          AND r.visit_state = 'REGISTERED'
+          AND r.checkin_status = 0
+        ORDER BY r.visit_date, r.queue_no
+    </select>
+
+    <!-- 查询候诊队列 -->
+    <select id="selectQueueList" resultType="com.neuedu.his.model.vo.QueueItemVO">
+        SELECT r.id AS registerId,
+               p.real_name AS patientName,
+               d.dept_name AS deptName,
+               e.realname AS doctorName,
+               CASE
+                   WHEN r.checkin_status = 1 AND r.visit_state = 'CONSULTING' THEN 'WAITING'
+                   WHEN r.visit_state = 'FINISHED' THEN 'PASSED'
+                   ELSE 'WAITING'
+                   END AS status
+        FROM register r
+                 LEFT JOIN patient p ON r.patient_id = p.id
+                 LEFT JOIN department d ON r.deptment_id = d.id
+                 LEFT JOIN employee e ON r.employee_id = e.id
+        WHERE r.employee_id = #{doctorId}
+          AND r.visit_date::date = #{visitDate}::date
+          AND r.noon = #{noon}
+          AND r.visit_state IN ('REGISTERED', 'CONSULTING', 'FINISHED')
+          AND r.checkin_status = 1
+        ORDER BY r.queue_no
+    </select>
+
+    <!-- 查询挂号费订单 -->
+    <select id="selectRegisterOrders" resultType="com.neuedu.his.model.vo.OrderListVO">
+        SELECT r.id AS registerId,
+        'REGISTER' AS itemType,
+        '挂号费' AS itemName,
+        r.id AS itemId,
+        r.regist_money AS amount,
+        CASE
+        WHEN r.visit_state = 'CANCELLED' THEN 'CANCELLED'
+        WHEN r.regist_money IS NOT NULL AND r.regist_money > 0 THEN 'UNPAID'
+        ELSE 'PAID'
+        END AS orderState,
+        d.dept_name AS deptName,
+        r.visit_date AS visitDate,
+        r.create_time AS createTime,
+        NULL AS payTime
+        FROM register r
+        LEFT JOIN department d ON r.deptment_id = d.id
+        WHERE r.patient_id = #{patientId}
+        AND r.regist_money IS NOT NULL
+        AND r.regist_money > 0
+        AND r.visit_state != 'CANCELLED'
+        <if test='orderState != null and orderState == "UNPAID"'>
+            AND r.regist_money > 0
+        </if>
+        ORDER BY r.create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 查询就诊详情（医生端用） -->
+    <select id="selectVisitDetail" resultMap="RegisterResultMap">
+        SELECT r.*,
+               p.real_name, p.gender, p.birthdate, p.case_number, p.phone, p.home_address,
+               mr.readme, mr.present, mr.diagnosis, mr.record_status,
+               (SELECT COUNT(*) FROM check_request WHERE register_id = r.id) as check_count,
+               (SELECT COUNT(*) FROM inspection_request WHERE register_id = r.id) as inspection_count,
+               (SELECT COUNT(*) FROM prescription WHERE register_id = r.id) as prescription_count
+        FROM register r
+                 JOIN patient p ON r.patient_id = p.id
+                 LEFT JOIN medical_record mr ON r.id = mr.register_id
+        WHERE r.id = #{registerId}
+    </select>
+
+    <!-- 查询医生的患者列表（待诊/就诊中/已完成） -->
+    <select id="selectDoctorPatients" resultMap="RegisterResultMap">
+        SELECT
+            r.*,
+            p.real_name,
+            p.gender,
+            p.birthdate,
+            p.case_number,
+            d.dept_name,
+            EXTRACT(YEAR FROM AGE(CURRENT_DATE, p.birthdate))::INTEGER AS age
+        FROM register r
+                 JOIN patient p ON r.patient_id = p.id
+                 JOIN department d ON r.deptment_id = d.id
+        WHERE r.employee_id = #{doctorId}
+          AND r.visit_state = #{visitState}
+        ORDER BY r.queue_no ASC, r.visit_date ASC
+    </select>
+
+</mapper>

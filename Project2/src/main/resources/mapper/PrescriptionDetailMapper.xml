@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.PrescriptionDetailMapper">
+
+    <insert id="batchInsert">
+        INSERT INTO prescription_detail(prescription_id, drug_id, usage_route, frequency, single_dose, use_days, drug_number)
+        VALUES
+        <foreach collection="details" item="item" separator=",">
+            (#{item.prescriptionId}, #{item.drugId}, #{item.usageRoute}, #{item.frequency}, #{item.singleDose}, #{item.useDays}, #{item.drugNumber})
+        </foreach>
+    </insert>
+
+</mapper>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.MedicalReportMapper">
+
+    <resultMap id="BaseResultMap" type="com.neuedu.his.model.entity.MedicalReport">
+        <id column="id" property="id"/>
+        <result column="register_id" property="registerId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="request_type" property="requestType"/>
+        <result column="request_id" property="requestId"/>
+        <result column="report_title" property="reportTitle"/>
+        <result column="report_text" property="reportText"/>
+        <result column="report_file_url" property="reportFileUrl"/>
+        <result column="report_time" property="reportTime"/>
+        <result column="is_viewed" property="isViewed"/>
+        <result column="viewed_time" property="viewedTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, register_id, patient_id, request_type, request_id,
+        report_title, report_text, report_file_url,
+        report_time, is_viewed, viewed_time,
+        create_time, update_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM medical_report
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO medical_report (
+            register_id, patient_id, request_type, request_id,
+            report_title, report_text, report_file_url,
+            report_time, is_viewed, viewed_time,
+            create_time, update_time
+        ) VALUES (
+                     #{registerId}, #{patientId}, #{requestType}, #{requestId},
+                     #{reportTitle}, #{reportText}, #{reportFileUrl},
+                     #{reportTime}, #{isViewed}, #{viewedTime},
+                     NOW(), NOW()
+                 )
+    </insert>
+
+    <update id="update">
+        UPDATE medical_report
+        <set>
+            <if test="registerId != null">register_id = #{registerId},</if>
+            <if test="patientId != null">patient_id = #{patientId},</if>
+            <if test="requestType != null">request_type = #{requestType},</if>
+            <if test="requestId != null">request_id = #{requestId},</if>
+            <if test="reportTitle != null">report_title = #{reportTitle},</if>
+            <if test="reportText != null">report_text = #{reportText},</if>
+            <if test="reportFileUrl != null">report_file_url = #{reportFileUrl},</if>
+            <if test="reportTime != null">report_time = #{reportTime},</if>
+            <if test="isViewed != null">is_viewed = #{isViewed},</if>
+            <if test="viewedTime != null">viewed_time = #{viewedTime},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 查询报告列表 -->
+    <select id="selectReportList" resultType="com.neuedu.his.model.vo.ReportListVO">
+        SELECT
+        mr.id AS id,
+        mr.report_title AS reportTitle,
+        mr.request_type AS requestType,
+        CASE mr.request_type
+        WHEN 'INSPECTION' THEN '检验报告'
+        WHEN 'CHECK' THEN '检查报告'
+        WHEN 'IMAGE' THEN '影像报告'
+        ELSE '其他'
+        END AS requestTypeName,
+        d.dept_name AS deptName,
+        p.real_name AS patientName,
+        mr.report_time AS reportTime,
+        mr.is_viewed AS isViewed
+        FROM medical_report mr
+        LEFT JOIN register r ON mr.register_id = r.id
+        LEFT JOIN department d ON r.deptment_id = d.id
+        LEFT JOIN patient p ON mr.patient_id = p.id
+        WHERE mr.patient_id = #{patientId}
+        <if test="requestType != null and requestType != ''">
+            AND mr.request_type = #{requestType}
+        </if>
+        ORDER BY mr.report_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countReportList" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM medical_report
+        WHERE patient_id = #{patientId}
+        <if test="requestType != null and requestType != ''">
+            AND request_type = #{requestType}
+        </if>
+    </select>
+
+    <select id="selectReportDetail" resultType="com.neuedu.his.model.vo.ReportDetailVO">
+        SELECT
+            mr.id AS id,
+            mr.report_title AS reportTitle,
+            mr.request_type AS requestType,
+            CASE mr.request_type
+                WHEN 'INSPECTION' THEN '检验报告'
+                WHEN 'CHECK' THEN '检查报告'
+                WHEN 'IMAGE' THEN '影像报告'
+                ELSE '其他'
+                END AS requestTypeName,
+            d.dept_name AS deptName,
+            p.real_name AS patientName,
+            mr.report_time AS reportTime,
+            mr.report_text AS reportText,
+            mr.is_viewed AS isViewed,
+            mr.report_file_url AS reportFileUrl
+        FROM medical_report mr
+                 LEFT JOIN register r ON mr.register_id = r.id
+                 LEFT JOIN department d ON r.deptment_id = d.id
+                 LEFT JOIN patient p ON mr.patient_id = p.id
+        WHERE mr.id = #{id}
+    </select>
+
+    <update id="markAsRead">
+        UPDATE medical_report
+        SET is_viewed = 1,
+            viewed_time = #{viewedTime},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

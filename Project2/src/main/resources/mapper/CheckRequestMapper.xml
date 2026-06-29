@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.CheckRequestMapper">
+
+    <resultMap id="CheckRequestResultMap" type="CheckRequest">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="medicalTechnologyId" column="medical_technology_id"/>
+        <result property="checkInfo" column="check_info"/>
+        <result property="checkPosition" column="check_position"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="checkState" column="check_state"/>
+        <result property="checkResult" column="check_result"/>
+        <result property="checkEmployeeId" column="check_employee_id"/>
+    </resultMap>
+
+    <select id="selectByRegisterId" resultMap="CheckRequestResultMap">
+        SELECT cr.*, mt.tech_name, mt.tech_price
+        FROM check_request cr
+                 LEFT JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+        WHERE cr.register_id = #{registerId}
+        ORDER BY cr.creation_time DESC
+    </select>
+
+    <update id="updateResult">
+        UPDATE check_request
+        SET check_result = #{checkResult},
+            check_employee_id = #{checkEmployeeId},
+            check_state = 'COMPLETED'
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateState">
+        UPDATE check_request
+        SET check_state = #{checkState}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 查询检查费订单 -->
+    <select id="selectCheckOrders" resultType="com.neuedu.his.model.vo.OrderListVO">
+        SELECT cr.register_id AS registerId,
+        'CHECK' AS itemType,
+        mt.tech_name AS itemName,
+        cr.id AS itemId,
+        mt.tech_price AS amount,
+        cr.check_state AS orderState,
+        d.dept_name AS deptName,
+        r.visit_date AS visitDate,
+        cr.creation_time AS createTime,
+        NULL AS payTime
+        FROM check_request cr
+        LEFT JOIN register r ON cr.register_id = r.id
+        LEFT JOIN department d ON r.deptment_id = d.id
+        LEFT JOIN medical_technology mt ON cr.medical_technology_id = mt.id
+        WHERE r.patient_id = #{patientId}
+        AND mt.tech_price IS NOT NULL
+        AND mt.tech_price > 0
+        <if test='orderState != null and orderState != ""'>
+            AND cr.check_state = #{orderState}
+        </if>
+        ORDER BY cr.creation_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+</mapper>

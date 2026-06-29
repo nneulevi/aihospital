@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.InspectionRequestMapper">
+
+    <resultMap id="InspectionRequestResultMap" type="com.neuedu.his.model.entity.InspectionRequest">
+        <id property="id" column="id"/>
+        <result property="registerId" column="register_id"/>
+        <result property="medicalTechnologyId" column="medical_technology_id"/>
+        <result property="inspectionInfo" column="inspection_info"/>
+        <result property="inspectionPosition" column="inspection_position"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="inspectionState" column="inspection_state"/>
+        <result property="inspectionResult" column="inspection_result"/>
+        <result property="inspectionEmployeeId" column="inspection_employee_id"/>
+    </resultMap>
+
+    <select id="selectByRegisterId" resultMap="InspectionRequestResultMap">
+        SELECT ir.*, mt.tech_name, mt.tech_price
+        FROM inspection_request ir
+                 LEFT JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+        WHERE ir.register_id = #{registerId}
+        ORDER BY ir.creation_time DESC
+    </select>
+
+    <update id="updateResult">
+        UPDATE inspection_request
+        SET inspection_result = #{inspectionResult},
+            inspection_employee_id = #{inspectionEmployeeId},
+            inspection_state = 'COMPLETED'
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateState">
+        UPDATE inspection_request
+        SET inspection_state = #{inspectionState}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 查询检验费订单 -->
+    <select id="selectInspectionOrders" resultType="com.neuedu.his.model.vo.OrderListVO">
+        SELECT ir.register_id AS registerId,
+        'INSPECTION' AS itemType,
+        mt.tech_name AS itemName,
+        ir.id AS itemId,
+        mt.tech_price AS amount,
+        ir.inspection_state AS orderState,
+        d.dept_name AS deptName,
+        r.visit_date AS visitDate,
+        ir.creation_time AS createTime,
+        NULL AS payTime
+        FROM inspection_request ir
+        LEFT JOIN register r ON ir.register_id = r.id
+        LEFT JOIN department d ON r.deptment_id = d.id
+        LEFT JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+        WHERE r.patient_id = #{patientId}
+        AND mt.tech_price IS NOT NULL
+        AND mt.tech_price > 0
+        <if test='orderState != null and orderState != ""'>
+            AND ir.inspection_state = #{orderState}
+        </if>
+        ORDER BY ir.creation_time DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+</mapper>
