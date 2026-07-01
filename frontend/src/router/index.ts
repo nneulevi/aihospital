@@ -24,6 +24,16 @@ import Prescriptions from '@/views/patient/Prescriptions.vue'
 import LabBooking from '@/views/patient/LabBooking.vue'
 import ExamBooking from '@/views/patient/ExamBooking.vue'
 
+// ========== ✅ 新增：导入新创建的页面组件 ==========
+import Messages from '@/views/patient/Messages.vue'
+import Consult from '@/views/patient/Consult.vue'
+import DoctorSchedule from '@/views/patient/DoctorSchedule.vue'
+import Revisit from '@/views/patient/Revisit.vue'
+import PhysicalExam from '@/views/patient/PhysicalExam.vue'
+import Services from '@/views/patient/Services.vue'
+import Guide from '@/views/patient/Guide.vue'
+import CustomerService from '@/views/patient/CustomerService.vue'
+
 // ========== 路由守卫 ==========
 const checkAuth = (to: any, from: any, next: any) => {
     // 获取用户 store
@@ -138,6 +148,16 @@ const patientRoutes: RouteRecordRaw[] = [
             { path: 'prescriptions', name: 'Prescriptions', component: Prescriptions, meta: { role: 'PATIENT' } },
             { path: 'lab-booking', name: 'LabBooking', component: LabBooking, meta: { role: 'PATIENT' } },
             { path: 'exam-booking', name: 'ExamBooking', component: ExamBooking, meta: { role: 'PATIENT' } },
+
+            // ===== ✅ 新增：新创建的页面路由 =====
+            { path: 'messages', name: 'Messages', component: Messages, meta: { role: 'PATIENT' } },
+            { path: 'consult', name: 'Consult', component: Consult, meta: { role: 'PATIENT' } },
+            { path: 'doctor-schedule', name: 'DoctorSchedule', component: DoctorSchedule, meta: { role: 'PATIENT' } },
+            { path: 'revisit', name: 'Revisit', component: Revisit, meta: { role: 'PATIENT' } },
+            { path: 'physical-exam', name: 'PhysicalExam', component: PhysicalExam, meta: { role: 'PATIENT' } },
+            { path: 'services', name: 'Services', component: Services, meta: { role: 'PATIENT' } },
+            { path: 'guide', name: 'Guide', component: Guide, meta: { role: 'PATIENT' } },
+            { path: 'customer-service', name: 'CustomerService', component: CustomerService, meta: { role: 'PATIENT' } },
 
             // ===== 旧路由兼容（重定向） =====
             { path: 'records', redirect: '/patient/appointments' },

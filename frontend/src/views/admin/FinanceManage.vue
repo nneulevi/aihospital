@@ -2,39 +2,6 @@
 <template>
   <div class="finance-manage">
     <van-tabs v-model:active="activeTab" class="finance-tabs">
-      <!-- 门诊收费 -->
-      <van-tab title="门诊收费" name="charge">
-        <div class="tab-content">
-          <div class="search-bar">
-            <van-field v-model="chargeRegisterId" label="挂号ID" placeholder="输入挂号ID" type="digit">
-              <template #button>
-                <van-button size="small" type="primary" @click="loadPendingItems" :loading="chargeLoading">查询</van-button>
-              </template>
-            </van-field>
-          </div>
-          <div v-if="pendingItems.length > 0" class="item-list">
-            <div v-for="item in pendingItems" :key="item.itemId" class="item-card">
-              <van-checkbox v-model="item.checked" />
-              <div class="item-info">
-                <div class="item-name">{{ item.itemName }}</div>
-                <div class="item-type">{{ getItemTypeName(item.itemType) }}</div>
-              </div>
-              <div class="item-amount">¥{{ item.amount?.toFixed(2) }}</div>
-            </div>
-          </div>
-          <div v-else class="empty-state">
-            <van-icon name="balance-pay" size="48" color="#C4B8A8" />
-            <p>{{ chargeRegisterId ? '暂无待收费项目' : '请输入挂号ID查询待收费项目' }}</p>
-          </div>
-        </div>
-        <div v-if="pendingItems.length > 0" class="bottom-bar">
-          <div class="total">合计：<span class="amount">¥{{ pendingTotal.toFixed(2) }}</span></div>
-          <van-button type="primary" round :disabled="selectedPending.length === 0 || charging" :loading="charging" @click="showChargeConfirm = true">
-            确认收费 ({{ selectedPending.length }})
-          </van-button>
-        </div>
-      </van-tab>
-
       <!-- 门诊退费 -->
       <van-tab title="门诊退费" name="refund">
         <div class="tab-content">
@@ -46,7 +13,7 @@
             </van-field>
           </div>
           <div v-if="paidItems.length > 0" class="item-list">
-            <div v-for="item in paidItems" :key="item.itemId" class="item-card">
+            <div v-for="item in paidItems" :key="item.id" class="item-card">
               <van-checkbox v-model="item.checked" />
               <div class="item-info">
                 <div class="item-name">{{ item.itemName }}</div>
@@ -81,7 +48,7 @@
             <div v-for="rec in financeRecords" :key="rec.id" class="record-card">
               <div class="record-header">
                 <span class="record-no">{{ rec.recordNo }}</span>
-                <van-tag :type="rec.recordType === 'CHARGE' ? 'success' : 'danger'" size="small">
+                <van-tag :type="rec.recordType === 'CHARGE' ? 'success' : 'danger'">
                   {{ rec.recordType === 'CHARGE' ? '收费' : '退费' }}
                 </van-tag>
               </div>
@@ -151,14 +118,6 @@
       </van-tab>
     </van-tabs>
 
-    <!-- 收费确认弹窗 -->
-    <van-dialog v-model:show="showChargeConfirm" title="确认收费" show-cancel-button @confirm="confirmCharge">
-      <div class="confirm-content">
-        <p>收费金额：¥{{ pendingTotal.toFixed(2) }}</p>
-        <p>项目数：{{ selectedPending.length }} 项</p>
-      </div>
-    </van-dialog>
-
     <van-popup v-model:show="showRecordStartPicker" position="bottom">
       <van-date-picker v-model="recordStartDateValue" @confirm="onRecordStartConfirm" @cancel="showRecordStartPicker = false" />
     </van-popup>
@@ -174,90 +133,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { showToast, showLoadingToast, closeToast } from 'vant'
-import { charge, refund, getFinanceRecords, getDailySummary } from '@/api'
-import type { FinanceRecordVO, DailySummaryVO } from '@/api/model'
+import { refund, getFinanceRecords, getDailySummary, getPaidItems } from '@/api'
+import type { FinanceRecordVO, DailySummaryVO, ChargeItem } from '@/api/model'
 import dayjs from 'dayjs'
 
-const activeTab = ref('charge')
-
-// ========== 收费 ==========
-const chargeRegisterId = ref('')
-const pendingItems = ref<any[]>([])
-const showChargeConfirm = ref(false)
-const chargeLoading = ref(false)
-const charging = ref(false)
-
-const selectedPending = computed(() => pendingItems.value.filter(i => i.checked))
-const pendingTotal = computed(() => selectedPending.value.reduce((sum, i) => sum + (i.amount || 0), 0))
-
-// 临时模拟：真实接口需要后端提供 /api/admin/finance/pending-items?registerId=xxx
-// 目前先用模拟数据，待后端补充接口后可替换
-const loadPendingItems = async () => {
-  if (!chargeRegisterId.value) { showToast('请输入挂号ID'); return }
-  chargeLoading.value = true
-  try {
-    // TODO: 替换为真实接口
-    // const res = await getPendingItems(Number(chargeRegisterId.value))
-    // pendingItems.value = res.map(item => ({ ...item, checked: false }))
-
-    // 模拟数据（待替换）
-    await new Promise(resolve => setTimeout(resolve, 500))
-    pendingItems.value = [
-      { itemId: 1, itemName: '头颅CT平扫', itemType: 'CHECK', amount: 280, checked: false },
-      { itemId: 2, itemName: '血常规检查', itemType: 'INSPECTION', amount: 45, checked: false },
-      { itemId: 3, itemName: '阿莫西林胶囊', itemType: 'DRUG', amount: 35.5, checked: false }
-    ]
-    if (pendingItems.value.length === 0) {
-      showToast('暂无待收费项目')
-    }
-  } catch {
-    showToast('查询失败')
-  } finally {
-    chargeLoading.value = false
-  }
-}
-
-const confirmCharge = async () => {
-  charging.value = true
-  try {
-    await charge({
-      registerId: Number(chargeRegisterId.value),
-      itemIds: selectedPending.value.map(i => i.itemId),
-      chargeMethod: 'CASH',
-      amount: pendingTotal.value
-    })
-    showToast('收费成功')
-    pendingItems.value = []
-    chargeRegisterId.value = ''
-    showChargeConfirm.value = false
-  } catch {
-    showToast('收费失败')
-  } finally {
-    charging.value = false
-  }
-}
+const activeTab = ref('refund')
 
 // ========== 退费 ==========
 const refundRegisterId = ref('')
-const paidItems = ref<any[]>([])
+const paidItems = ref<(ChargeItem & { checked: boolean })[]>([])
 const refundReason = ref('')
 const refundLoading = ref(false)
 const refunding = ref(false)
 
 const selectedPaid = computed(() => paidItems.value.filter(i => i.checked))
-const refundTotal = computed(() => selectedPaid.value.reduce((sum, i) => sum + (i.amount || 0), 0))
+const refundTotal = computed(() => selectedPaid.value.reduce((sum, i) => sum + (Number(i.amount) || 0), 0))
 
-// 临时模拟：真实接口需要后端提供 /api/admin/finance/paid-items?registerId=xxx
 const loadPaidItems = async () => {
   if (!refundRegisterId.value) { showToast('请输入挂号ID'); return }
   refundLoading.value = true
   try {
-    // TODO: 替换为真实接口
-    await new Promise(resolve => setTimeout(resolve, 500))
-    paidItems.value = [
-      { itemId: 4, itemName: '布洛芬缓释胶囊', itemType: 'DRUG', amount: 28, checked: false },
-      { itemId: 5, itemName: '挂号费', itemType: 'REGISTER', amount: 50, checked: false }
-    ]
+    const res = await getPaidItems({ registerId: Number(refundRegisterId.value) })
+    paidItems.value = (res as any)?.map((item: ChargeItem) => ({ ...item, checked: false })) || []
     if (paidItems.value.length === 0) {
       showToast('暂无已收费项目')
     }
@@ -274,7 +171,7 @@ const handleRefund = async () => {
   try {
     await refund({
       registerId: Number(refundRegisterId.value),
-      itemIds: selectedPaid.value.map(i => i.itemId),
+      itemIds: selectedPaid.value.map(i => i.id),
       refundAmount: refundTotal.value,
       refundReason: refundReason.value
     })
@@ -312,12 +209,10 @@ const loadRecords = async () => {
   recordsLoading.value = true
   try {
     const res = await getFinanceRecords({
-      query: {
-        startDate: recordStartDate.value,
-        endDate: recordEndDate.value,
-        pageNum: 1,
-        pageSize: 50
-      }
+      startDate: recordStartDate.value,
+      endDate: recordEndDate.value,
+      pageNum: 1,
+      pageSize: 50
     })
     financeRecords.value = (res as any)?.records || []
   } catch {
@@ -343,7 +238,7 @@ const loadSummary = async () => {
   summaryLoading.value = true
   try {
     const res = await getDailySummary({
-      query: { summaryDate: summaryDate.value }
+      summaryDate: summaryDate.value
     })
     summaryData.value = res as DailySummaryVO
   } catch {
@@ -366,7 +261,6 @@ const getItemTypeName = (type?: string) => {
 
 const formatDateTime = (date?: string) => date ? dayjs(date).format('MM-DD HH:mm') : ''
 
-// 默认加载记录和日结
 onMounted(() => {
   loadRecords()
   loadSummary()
@@ -552,15 +446,6 @@ onMounted(() => {
   }
   &.text {
     font-size: 16px;
-  }
-}
-.confirm-content {
-  padding: 20px;
-  text-align: center;
-  p {
-    margin: 8px 0;
-    font-size: 14px;
-    color: #5C4B3A;
   }
 }
 </style>

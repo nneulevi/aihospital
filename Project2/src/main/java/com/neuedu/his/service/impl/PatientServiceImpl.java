@@ -57,6 +57,9 @@ public class PatientServiceImpl implements PatientService {
     @Autowired
     private CheckRequestMapper checkRequestMapper;
 
+    @Autowired
+    private ChargeItemMapper chargeItemMapper;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // ==================== 原有方法 ====================
@@ -123,6 +126,17 @@ public class PatientServiceImpl implements PatientService {
         register.setRegistMethod(request.getRegistMethod() != null ? request.getRegistMethod() : "在线预约");
 
         registerMapper.insert(register);
+
+        ChargeItem chargeItem = new ChargeItem();
+        chargeItem.setSourceId(Long.valueOf(register.getId()));
+        chargeItem.setSourceType("REGISTER");
+        chargeItem.setRegisterId(Long.valueOf(register.getId()));
+        chargeItem.setItemName("Register Fee");
+        chargeItem.setItemType("REGISTER");
+        chargeItem.setAmount(register.getRegistMoney());
+        chargeItem.setStatus("PENDING");
+        chargeItemMapper.insert(chargeItem);
+
         return register.getId();
     }
 

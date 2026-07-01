@@ -28,7 +28,7 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
         }
     })
 
-    // 请求拦截�?
+    // 请求拦截器
     instance.interceptors.request.use(
         (config: InternalAxiosRequestConfig) => {
             const token = getToken()
@@ -42,7 +42,7 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
         }
     )
 
-    // 响应拦截�?
+    // 响应拦截器
     instance.interceptors.response.use(
         (response: AxiosResponse) => {
             // 直接返回 data
@@ -57,7 +57,7 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
                         // 未授权，清除登录信息
                         removeToken()
                         removeUser()
-                        showMessage('登录已过期，请重新登�?)
+                        showMessage('登录已过期，请重新登录')
                         // 跳转到登录页
                         if (!isMobile()) {
                             window.location.href = '/patient/login'
@@ -66,19 +66,19 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
                         }
                         break
                     case 403:
-                        showMessage('没有权限访问该资�?)
+                        showMessage('没有权限访问该资源')
                         break
                     case 404:
                         showMessage('请求的资源不存在')
                         break
                     case 500:
-                        showMessage(data?.message || '服务器内部错�?)
+                        showMessage(data?.message || '服务器内部错误')
                         break
                     default:
                         showMessage(data?.message || '请求失败，请稍后重试')
                 }
             } else if (error.request) {
-                showMessage('网络连接失败，请检查网�?)
+                showMessage('网络连接失败，请检查网络')
             } else {
                 showMessage(error.message || '请求失败')
             }

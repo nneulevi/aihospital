@@ -74,4 +74,11 @@ public interface PrescriptionMapper {
                                        @Param("orderState") String orderState,
                                        @Param("offset") Integer offset,
                                        @Param("limit") Integer limit);
+
+    @Select("SELECT p.id as prescriptionId, p.prescription_no as prescriptionNo, p.total_amount as totalAmount, p.prescription_status as status, pat.real_name as patientName " +
+            "FROM prescription p " +
+            "LEFT JOIN register r ON p.register_id = r.id " +
+            "LEFT JOIN patient pat ON r.patient_id = pat.id " +
+            "WHERE p.prescription_status = #{status}")
+    List<com.neuedu.his.model.vo.PrescriptionDispenseVO> selectDispenseListByStatus(@Param("status") String status);
 }

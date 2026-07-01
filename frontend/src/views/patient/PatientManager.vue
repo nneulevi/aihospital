@@ -24,12 +24,13 @@
             <van-tag v-if="patient.isDefault" type="success" size="mini">默认</van-tag>
           </div>
           <div class="patient-meta">
-            <span>{{ patient.gender === 'MALE' ? '男' : '女' }}</span>
+            <!-- ✅ 数据库存的是中文 "男"/"女"，直接显示 -->
+            <span>{{ patient.gender || '未知' }}</span>
             <span>{{ patient.age || '--' }}岁</span>
-            <span>病历号：{{ patient.caseNumber }}</span>
+            <span>病历号：{{ patient.caseNumber || '--' }}</span>
           </div>
           <div class="patient-phone">
-            <van-icon name="phone-o" /> {{ patient.phone }}
+            <van-icon name="phone-o" /> {{ patient.phone || '--' }}
           </div>
           <div class="patient-id-card">
             <van-icon name="idcard-o" /> {{ maskIdCard(patient.cardNumber) }}
@@ -137,7 +138,6 @@
             </template>
           </van-field>
 
-          <!-- ✅ 日期选择 -->
           <van-field
               name="birthdate"
               label="出生日期"
@@ -182,8 +182,8 @@
     <!-- ===== 性别选择器 ===== -->
     <van-action-sheet v-model:show="showGenderPicker" title="选择性别">
       <div class="picker-options">
-        <div class="picker-option" @click="selectGender('MALE')">男</div>
-        <div class="picker-option" @click="selectGender('FEMALE')">女</div>
+        <div class="picker-option" @click="selectGender('男')">男</div>
+        <div class="picker-option" @click="selectGender('女')">女</div>
       </div>
     </van-action-sheet>
 
@@ -245,7 +245,7 @@ const formData = ref<PatientAuthRegisterRequestDTO & { relation?: string }>({
   cardNumber: '',
   phone: '',
   code: '',
-  gender: 'MALE',
+  gender: '男',  // ✅ 默认改为中文
   birthdate: '',
   homeAddress: '',
   relation: ''
@@ -275,11 +275,11 @@ const extractBirthdateFromCard = (cardNumber: string): string | null => {
   return `${year}-${month}-${day}`
 }
 
-// 从身份证提取性别
+// 从身份证提取性别（返回中文）
 const extractGenderFromCard = (cardNumber: string): string | null => {
   if (!cardNumber || cardNumber.length !== 18) return null
   const genderCode = parseInt(cardNumber.substring(16, 17))
-  return genderCode % 2 === 1 ? 'MALE' : 'FEMALE'
+  return genderCode % 2 === 1 ? '男' : '女'
 }
 
 // ============ 发送验证码 ============
@@ -347,7 +347,7 @@ const editPatient = (patient: PatientListVO) => {
     cardNumber: patient.cardNumber || '',
     phone: patient.phone || '',
     code: '',
-    gender: patient.gender || 'MALE',
+    gender: patient.gender || '男',
     birthdate: patient.birthdate || '',
     homeAddress: patient.homeAddress || '',
     relation: patient.relation || ''
@@ -371,7 +371,6 @@ const confirmDelete = async () => {
 
   try {
     // TODO: 调用删除 API
-    // await deletePatient(deleteTarget.value.id!)
     patients.value = patients.value.filter(p => p.id !== deleteTarget.value?.id)
     showSuccessToast('删除成功')
   } catch {
@@ -393,7 +392,7 @@ const openAddForm = () => {
     cardNumber: '',
     phone: '',
     code: '',
-    gender: 'MALE',
+    gender: '男',  // ✅ 默认男
     birthdate: '',
     homeAddress: '',
     relation: ''
@@ -428,7 +427,6 @@ const onCardNumberChange = () => {
 // ============ 提交表单 ============
 
 const submitPatient = async () => {
-  // 基础校验
   if (!formData.value.realName) { showToast('请填写姓名'); return }
   if (!formData.value.cardNumber) { showToast('请填写身份证号'); return }
   if (!formData.value.phone) { showToast('请填写手机号'); return }
@@ -437,7 +435,6 @@ const submitPatient = async () => {
   submitting.value = true
 
   try {
-    // 调用注册接口（自动注册/登录）
     const params: PatientAuthRegisterRequestDTO = {
       realName: formData.value.realName,
       cardNumber: formData.value.cardNumber,
@@ -450,10 +447,8 @@ const submitPatient = async () => {
 
     const res = await authRegister(params)
 
-    // ✅ 刷新就诊人列表
     await loadPatients()
 
-    // ✅ 更新 store 中的当前就诊人（自动切换）
     if (res?.patientId) {
       userStore.setCurrentPatient?.({
         patientId: res.patientId,
@@ -465,7 +460,6 @@ const submitPatient = async () => {
     }
 
     showSuccessToast(res?.isNewPatient ? '添加成功' : '就诊人已存在，已自动切换')
-
     closeForm()
   } catch (error: any) {
     showToast(error.message || '操作失败')
@@ -484,7 +478,7 @@ const closeForm = () => {
     cardNumber: '',
     phone: '',
     code: '',
-    gender: 'MALE',
+    gender: '男',
     birthdate: '',
     homeAddress: '',
     relation: ''

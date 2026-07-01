@@ -11,6 +11,7 @@ import type {
 } from 'axios';
 
 import type {
+  ChargeItem,
   ChargeRequestDTO,
   CheckRequestCreateDTO,
   CheckResultDetailVO,
@@ -42,7 +43,9 @@ import type {
   GetFinanceRecordsParams,
   GetInventoryParams,
   GetOrdersParams,
+  GetPaidItemsParams,
   GetPatientsParams,
+  GetPendingItemsParams,
   GetPrescriptionsParams,
   GetProfileParams,
   GetQueueCountParams,
@@ -79,6 +82,8 @@ import type {
   PatientRegisterRequestDTO,
   PrescriptionCreateDTO,
   PrescriptionDetailVO,
+  PrescriptionDispenseVO,
+  PrescriptionRefundVO,
   QueueCountVO,
   QueueStatusVO,
   RefundRequestDTO,
@@ -632,6 +637,26 @@ const getFinanceRecords = <TData = AxiosResponse<PageResultFinanceRecordVO>>(
     );
   }
 
+const getPendingItems = <TData = AxiosResponse<ChargeItem[]>>(
+    params: GetPendingItemsParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/admin/finance/pending-items`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
+const getPaidItems = <TData = AxiosResponse<ChargeItem[]>>(
+    params: GetPaidItemsParams, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/admin/finance/paid-items`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
 const getDailySummary = <TData = AxiosResponse<DailySummaryVO>>(
     params: GetDailySummaryParams, options?: AxiosRequestConfig
  ): Promise<TData> => {
@@ -658,6 +683,22 @@ const listDoctors = <TData = AxiosResponse<EmployeeListItemVO[]>>(
     );
   }
 
+const getPendingRefund = <TData = AxiosResponse<PrescriptionRefundVO[]>>(
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/admin/drug/pending-refund`,options
+    );
+  }
+
+const getPendingDispense = <TData = AxiosResponse<PrescriptionDispenseVO[]>>(
+     options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/admin/drug/pending-dispense`,options
+    );
+  }
+
 const getDrugInventory = <TData = AxiosResponse<PageResultDrugInventoryVO>>(
     params: GetDrugInventoryParams, options?: AxiosRequestConfig
  ): Promise<TData> => {
@@ -676,7 +717,7 @@ const listDepartments1 = <TData = AxiosResponse<Department[]>>(
     );
   }
 
-return {markReportRead,cancelRegister,confirmDiagnosis,switchPatient,sendCode,register,logout,createInspectionRequest,submitCheckin,createCheckRequest,register1,createPrescription,saveMedicalRecord,createInspectionRequest1,createDisposalRequest,createCheckRequest1,sendCode1,logout1,login,loginByCode,generate,generate1,upload,analyze,suggest,triage,refund,charge,createEmployee,drugRefund,dispense,getReports,getReportDetail,getTodayRegisters,getRecords,getRecordDetail,getQueueStatus,getQueueDepts,getQueueCount,getPrescriptions,getPrescriptionDetail,getOrders,getInspectionList,getCheckList,list,getDoctors,listDepartments,getCurrentPatient,getInventory,getStatistics,getProfile,getPatients,getPatientDetail,getCheckResults,getCheckResultDetail,getResults,getDoctorStats,getDeptStats,getFinanceRecords,getDailySummary,listEmployees,listDoctors,getDrugInventory,listDepartments1}};
+return {markReportRead,cancelRegister,confirmDiagnosis,switchPatient,sendCode,register,logout,createInspectionRequest,submitCheckin,createCheckRequest,register1,createPrescription,saveMedicalRecord,createInspectionRequest1,createDisposalRequest,createCheckRequest1,sendCode1,logout1,login,loginByCode,generate,generate1,upload,analyze,suggest,triage,refund,charge,createEmployee,drugRefund,dispense,getReports,getReportDetail,getTodayRegisters,getRecords,getRecordDetail,getQueueStatus,getQueueDepts,getQueueCount,getPrescriptions,getPrescriptionDetail,getOrders,getInspectionList,getCheckList,list,getDoctors,listDepartments,getCurrentPatient,getInventory,getStatistics,getProfile,getPatients,getPatientDetail,getCheckResults,getCheckResultDetail,getResults,getDoctorStats,getDeptStats,getFinanceRecords,getPendingItems,getPaidItems,getDailySummary,listEmployees,listDoctors,getPendingRefund,getPendingDispense,getDrugInventory,listDepartments1}};
 export type MarkReportReadResult = AxiosResponse<void>
 export type CancelRegisterResult = AxiosResponse<void>
 export type ConfirmDiagnosisResult = AxiosResponse<void>
@@ -736,8 +777,12 @@ export type GetResultsResult = AxiosResponse<PageResultScheduleResultVO>
 export type GetDoctorStatsResult = AxiosResponse<DoctorStatsVO[]>
 export type GetDeptStatsResult = AxiosResponse<DeptStatsVO[]>
 export type GetFinanceRecordsResult = AxiosResponse<PageResultFinanceRecordVO>
+export type GetPendingItemsResult = AxiosResponse<ChargeItem[]>
+export type GetPaidItemsResult = AxiosResponse<ChargeItem[]>
 export type GetDailySummaryResult = AxiosResponse<DailySummaryVO>
 export type ListEmployeesResult = AxiosResponse<EmployeeListItemVO[]>
 export type ListDoctorsResult = AxiosResponse<EmployeeListItemVO[]>
+export type GetPendingRefundResult = AxiosResponse<PrescriptionRefundVO[]>
+export type GetPendingDispenseResult = AxiosResponse<PrescriptionDispenseVO[]>
 export type GetDrugInventoryResult = AxiosResponse<PageResultDrugInventoryVO>
 export type ListDepartments1Result = AxiosResponse<Department[]>

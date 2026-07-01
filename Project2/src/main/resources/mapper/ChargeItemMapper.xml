@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.neuedu.his.mapper.ChargeItemMapper">
+
+    <select id="selectRecords" resultType="com.neuedu.his.model.vo.ChargeItemVO">
+        SELECT
+            ci.id,
+            ci.source_id as sourceId,
+            ci.source_type as sourceType,
+            ci.register_id as registerId,
+            ci.item_name as itemName,
+            ci.item_type as itemType,
+            ci.amount,
+            ci.status,
+            ci.finance_record_id as financeRecordId,
+            ci.charge_method as chargeMethod,
+            ci.charge_time as chargeTime,
+            ci.refund_reason as refundReason,
+            ci.refund_time as refundTime,
+            ci.operator_id as operatorId,
+            ci.create_time as createTime,
+            ci.update_time as updateTime,
+            p.real_name as patientName,
+            e.realname as operatorName,
+            fr.record_no as financeRecordNo
+        FROM charge_item ci
+        LEFT JOIN register r ON ci.register_id = r.id
+        LEFT JOIN patient p ON r.patient_id = p.id
+        LEFT JOIN employee e ON ci.operator_id = e.id
+        LEFT JOIN finance_record fr ON ci.finance_record_id = fr.id
+        WHERE ci.status IN ('CHARGED', 'REFUNDED')
+        <if test="startDate != null">
+            AND DATE(COALESCE(ci.charge_time, ci.refund_time, ci.create_time)) &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND DATE(COALESCE(ci.charge_time, ci.refund_time, ci.create_time)) &lt;= #{endDate}
+        </if>
+        <if test="chargeMethod != null and chargeMethod != ''">
+            AND ci.charge_method = #{chargeMethod}
+        </if>
+        <if test="status != null and status != ''">
+            AND ci.status = #{status}
+        </if>
+        ORDER BY COALESCE(ci.charge_time, ci.refund_time, ci.create_time) DESC
+    </select>
+
+    <select id="selectDailySummary" resultType="java.util.HashMap">
+        SELECT
+            COUNT(*) as total_count,
+            SUM(CASE WHEN status = 'CHARGED' THEN amount ELSE 0 END) as charge_amount,
+            SUM(CASE WHEN status = 'REFUNDED' THEN amount ELSE 0 END) as refund_amount,
+            SUM(CASE WHEN status = 'CHARGED' THEN 1 ELSE 0 END) as charge_count,
+            SUM(CASE WHEN status = 'REFUNDED' THEN 1 ELSE 0 END) as refund_count
+        FROM charge_item
+        WHERE status IN ('CHARGED', 'REFUNDED')
+        AND DATE(COALESCE(charge_time, refund_time, create_time)) = #{summaryDate}::date
+    </select>
+
+</mapper>

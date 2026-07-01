@@ -194,13 +194,19 @@ const checkinResult = ref<{ queueNumber: string; aheadCount: number } | null>(nu
 const loadTodayRecords = async () => {
   try {
     const patientId = userStore.patientId
+    console.log('📤 [Checkin] 加载今日就诊，patientId:', patientId)
+
     if (!patientId) {
       showToast('请先登录')
       return
     }
+
     const res = await getTodayRegisters({ patientId }) as TodayRegisterVO[]
-    // 只显示未报到的
+    console.log('📥 [Checkin] 今日就诊数据:', res)
+
+    // 只显示未报到的 (checkinStatus === 0)
     todayRecords.value = (res || []).filter(r => r.checkinStatus === 0)
+    console.log('📥 [Checkin] 未报到记录:', todayRecords.value)
 
     const { registerId } = route.query
     if (registerId) {
@@ -212,7 +218,8 @@ const loadTodayRecords = async () => {
         }
       }
     }
-  } catch {
+  } catch (error) {
+    console.error('❌ [Checkin] 加载就诊记录失败:', error)
     showToast('加载就诊记录失败')
   }
 }
@@ -233,19 +240,45 @@ const submitCheckin = async () => {
     return
   }
 
+  const registerId = selectedRecord.value.registerId!
+  console.log('📤 [Checkin] ===== 提交报到 =====')
+  console.log('📤 [Checkin] registerId:', registerId)
+
   submitting.value = true
   try {
-    const res = await submitCheckin({
-      registerId: selectedRecord.value.registerId!
-    }) as CheckinResultVO
+    // 🔥 使用 request.ts 的 request.post，直接返回 CheckinResultVO
+    const res = await submitCheckin({ registerId })
+    console.log('📥 [Checkin] 报到响应:', res)
+    console.log('📥 [Checkin] 响应类型:', typeof res)
+    console.log('📥 [Checkin] 是否有 queueNumber:', res && 'queueNumber' in res)
+
+    // 🔥 空值安全检查
+    if (!res) {
+      showToast('后端返回为空，请检查网络或接口')
+      return
+    }
+
     checkinResult.value = {
       queueNumber: res.queueNumber || '--',
-      aheadCount: res.aheadCount || 0
+      aheadCount: res.aheadCount ?? 0
     }
     showSuccessToast('报到成功')
     stepStatus.value = 2
   } catch (error: any) {
-    showToast(error.message || '报到失败，请重试')
+    console.error('❌ [Checkin] 报到失败:', error)
+
+    // 详细错误信息
+    if (error.response) {
+      console.error('📥 错误响应状态:', error.response.status)
+      console.error('📥 错误响应数据:', error.response.data)
+      const errorMsg = error.response.data?.message || error.response.data?.msg || '报到失败，请重试'
+      showToast(errorMsg)
+    } else if (error.request) {
+      console.error('📥 请求已发送但未收到响应:', error.request)
+      showToast('网络错误，请检查后端服务是否启动')
+    } else {
+      showToast(error.message || '报到失败，请重试')
+    }
   } finally {
     submitting.value = false
   }
@@ -262,12 +295,11 @@ const goToHome = () => router.push('/patient/home')
 const goToQueue = () => router.push('/patient/queue')
 
 // ============ 生命周期 ============
-onMounted(loadTodayRecords)
+onMounted(() => {
+  console.log('🚀 [Checkin] 页面加载')
+  loadTodayRecords()
+})
 </script>
-
-<style lang="scss" scoped>
-/* 样式保持不变 */
-</style>
 
 <style lang="scss" scoped>
 .checkin-page {

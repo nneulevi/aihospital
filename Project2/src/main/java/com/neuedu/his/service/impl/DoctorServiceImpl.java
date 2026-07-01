@@ -43,6 +43,10 @@ public class DoctorServiceImpl implements DoctorService {
     private DrugInfoMapper drugInfoMapper;
     @Autowired
     private DiseaseMapper diseaseMapper;
+    @Autowired
+    private ChargeItemMapper chargeItemMapper;
+    @Autowired
+    private MedicalTechnologyMapper medicalTechnologyMapper;
 
     @Override
     public PageResult<DoctorPatientListVO> getPatients(DoctorPatientsQueryDTO query) {
@@ -128,6 +132,17 @@ public class DoctorServiceImpl implements DoctorService {
             check.setCheckInfo(item.getCheckInfo());
             check.setCheckPosition(item.getCheckPosition());
             checkRequestMapper.insert(check);
+
+            MedicalTechnology tech = medicalTechnologyMapper.selectById(item.getMedicalTechnologyId());
+            ChargeItem chargeItem = new ChargeItem();
+            chargeItem.setSourceId(Long.valueOf(check.getId()));
+            chargeItem.setSourceType("CHECK");
+            chargeItem.setRegisterId(Long.valueOf(request.getRegisterId()));
+            chargeItem.setItemName(tech != null ? tech.getTechName() : "Check");
+            chargeItem.setItemType("CHECK");
+            chargeItem.setAmount(tech != null ? tech.getTechPrice() : BigDecimal.ZERO);
+            chargeItem.setStatus("PENDING");
+            chargeItemMapper.insert(chargeItem);
         }
     }
 
@@ -146,6 +161,17 @@ public class DoctorServiceImpl implements DoctorService {
             inspection.setInspectionInfo(item.getInspectionInfo());
             inspection.setInspectionPosition(item.getInspectionPosition());
             inspectionRequestMapper.insert(inspection);
+
+            MedicalTechnology tech = medicalTechnologyMapper.selectById(item.getMedicalTechnologyId());
+            ChargeItem chargeItem = new ChargeItem();
+            chargeItem.setSourceId(Long.valueOf(inspection.getId()));
+            chargeItem.setSourceType("INSPECTION");
+            chargeItem.setRegisterId(Long.valueOf(request.getRegisterId()));
+            chargeItem.setItemName(tech != null ? tech.getTechName() : "Inspection");
+            chargeItem.setItemType("INSPECTION");
+            chargeItem.setAmount(tech != null ? tech.getTechPrice() : BigDecimal.ZERO);
+            chargeItem.setStatus("PENDING");
+            chargeItemMapper.insert(chargeItem);
         }
     }
 
@@ -164,6 +190,17 @@ public class DoctorServiceImpl implements DoctorService {
             disposal.setDisposalInfo(item.getDisposalInfo());
             disposal.setDisposalPosition(item.getDisposalPosition());
             disposalRequestMapper.insert(disposal);
+
+            MedicalTechnology tech = medicalTechnologyMapper.selectById(item.getMedicalTechnologyId());
+            ChargeItem chargeItem = new ChargeItem();
+            chargeItem.setSourceId(Long.valueOf(disposal.getId()));
+            chargeItem.setSourceType("DISPOSAL");
+            chargeItem.setRegisterId(Long.valueOf(request.getRegisterId()));
+            chargeItem.setItemName(tech != null ? tech.getTechName() : "Disposal");
+            chargeItem.setItemType("DISPOSAL");
+            chargeItem.setAmount(tech != null ? tech.getTechPrice() : BigDecimal.ZERO);
+            chargeItem.setStatus("PENDING");
+            chargeItemMapper.insert(chargeItem);
         }
     }
 
@@ -210,6 +247,16 @@ public class DoctorServiceImpl implements DoctorService {
         prescriptionDetailMapper.batchInsert(details);
 
         prescriptionMapper.updateStatusAndAmount(prescription.getId(), "CREATED", total);
+
+        ChargeItem chargeItem = new ChargeItem();
+        chargeItem.setSourceId(Long.valueOf(prescription.getId()));
+        chargeItem.setSourceType("PRESCRIPTION");
+        chargeItem.setRegisterId(Long.valueOf(request.getRegisterId()));
+        chargeItem.setItemName("Drug");
+        chargeItem.setItemType("DRUG");
+        chargeItem.setAmount(total);
+        chargeItem.setStatus("PENDING");
+        chargeItemMapper.insert(chargeItem);
 
         return prescription.getId();
     }

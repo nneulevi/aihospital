@@ -100,13 +100,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import dayjs from 'dayjs'
 import { getRecords, cancelRegister } from '@/api'
 import { useUserStore } from '@/stores/user'
 import type { PageResultPatientRecordListVO, PatientRecordListVO } from '@/api/model'
 
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
@@ -138,23 +139,56 @@ const getDeptIcon = (name?: string) => {
   return deptIcons[name] || '🏥'
 }
 
+// ===== 获取 patientId =====
+const getPatientId = (): number | null => {
+  // 1. 优先从路由参数获取
+  const queryId = route.query.patientId
+  if (queryId) {
+    const id = Number(queryId)
+    if (!isNaN(id) && id > 0) {
+      return id
+    }
+  }
+  // 2. 从 store 获取
+  if (userStore.patientId) {
+    return userStore.patientId
+  }
+  return null
+}
+
 // ===== 加载数据 =====
 const loadRecords = async () => {
+  const patientId = getPatientId()
+  console.log('📥 [AppointmentRecords] 加载记录，patientId:', patientId)
+
+  if (!patientId) {
+    console.warn('⚠️ [AppointmentRecords] patientId 为空，无法加载')
+    loading.value = false
+    finished.value = true
+    return
+  }
+
   loading.value = true
   try {
-    const patientId = userStore.patientId
-    if (!patientId) {
-      loading.value = false
-      return
+    // 🔥 修复：直接传递参数，不需要 query 包装
+    const params: any = {
+      pageNum: pageNum.value,
+      pageSize: pageSize.value,
+      patientId: patientId
     }
-    const res = await getRecords({
-      query: {
-        pageNum: pageNum.value,
-        pageSize: pageSize.value,
-        patientId: patientId,
-        visitState: activeTab.value === 'all' ? undefined : activeTab.value
-      }
-    }) as PageResultPatientRecordListVO
+
+    // 只有非 "all" 时才添加 visitState 过滤
+    if (activeTab.value !== 'all') {
+      params.visitState = activeTab.value
+    }
+
+    console.log('📤 [AppointmentRecords] 请求参数:', params)
+
+    const res = await getRecords(params) as PageResultPatientRecordListVO
+
+    console.log('📥 [AppointmentRecords] 响应:', res)
+    console.log('📥 [AppointmentRecords] records 长度:', res?.records?.length)
+
     total.value = res.total || 0
     const records = res.records || []
     if (refreshing.value) {
@@ -164,7 +198,8 @@ const loadRecords = async () => {
       recordList.value.push(...records)
     }
     if (recordList.value.length >= total.value) finished.value = true
-  } catch {
+  } catch (error) {
+    console.error('❌ [AppointmentRecords] 加载失败:', error)
     showToast('加载挂号记录失败')
   } finally {
     loading.value = false
@@ -264,10 +299,13 @@ const reRegister = (record: PatientRecordListVO) => {
 
 const goToHome = () => router.push('/patient/home')
 
-onMounted(loadRecords)
+// ============ 生命周期 ============
+onMounted(() => {
+  console.log('🚀 [AppointmentRecords] 页面加载')
+  console.log('📤 [AppointmentRecords] 路由参数:', route.query)
+  loadRecords()
+})
 </script>
-
-
 
 <style lang="scss" scoped>
 .appointment-records {

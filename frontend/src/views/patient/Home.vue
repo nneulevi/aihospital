@@ -11,13 +11,17 @@
           <van-icon name="bell-o" size="22" @click="goToMessages" />
         </div>
       </div>
-      <div class="patient-switcher" @click="showPatientSheet = true">
+
+      <!-- ✅ 点击跳转到 PatientManager -->
+      <div class="patient-switcher" @click="goToPatientManager">
         <div class="patient-info">
           <span class="patient-name">{{ displayName || '请选择就诊人' }}</span>
-          <span class="patient-id" v-if="userStore.userInfo?.caseNumber">病历号：{{ userStore.userInfo.caseNumber }}</span>
+          <span class="patient-id" v-if="userInfo?.caseNumber">
+            病历号：{{ userInfo.caseNumber }}
+          </span>
           <span class="patient-id" v-else>点击添加就诊人</span>
         </div>
-        <van-icon name="arrow-down" class="switch-arrow" />
+        <van-icon name="arrow" class="switch-arrow" />
       </div>
     </div>
 
@@ -63,7 +67,7 @@
     <div class="service-section">
       <div class="section-header">
         <span class="section-title">门诊服务</span>
-        <span class="section-more" @click="showAllServices">全部</span>
+        <span class="section-more" @click="goToServices">全部</span>
       </div>
       <div class="service-grid">
         <div
@@ -72,7 +76,7 @@
             class="grid-item"
             @click="goToService(item.key)"
         >
-          <div class="grid-icon" :style="{ background: item.bgColor, color: item.color }">
+          <div class="grid-icon" :style="{ background: item.bg, color: item.color }">
             <van-icon :name="item.icon" size="24" />
           </div>
           <span class="grid-label">{{ item.label }}</span>
@@ -105,64 +109,26 @@
         </div>
       </div>
     </div>
-
-    <van-action-sheet v-model:show="showPatientSheet" title="切换就诊人">
-      <div class="patient-list">
-        <div
-            v-for="patient in patientList"
-            :key="patient.patientId"
-            class="patient-option"
-            :class="{ active: currentPatient?.patientId === patient.patientId }"
-            @click="selectPatient(patient)"
-        >
-          <div class="patient-avatar">
-            <van-icon name="user-circle-o" size="32" />
-          </div>
-          <div class="patient-detail">
-            <div class="patient-name">{{ patient.realName }}</div>
-            <div class="patient-meta">
-              <span>{{ patient.gender === 'MALE' ? '男' : '女' }}</span>
-              <span>{{ patient.age || '--' }}岁</span>
-              <span>病历号：{{ patient.caseNumber }}</span>
-            </div>
-          </div>
-          <van-icon v-if="currentPatient?.patientId === patient.patientId" name="success" color="#4CAF50" />
-        </div>
-        <div class="add-patient" @click="goToPatientManager">
-          <van-icon name="plus" size="20" />
-          <span>添加就诊人</span>
-        </div>
-      </div>
-    </van-action-sheet>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
+import { getQueueCount } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-const showPatientSheet = ref(false)
-const patientList = ref<any[]>([])
-const queueNumber = ref(0)
-
-// ===== 显示名称：从 userStore 获取 =====
+// ===== 显示名称 =====
 const displayName = computed(() => {
-  return userStore.userName || userStore.userInfo?.realName || userStore.userInfo?.realname || '用户'
+  return userStore.userInfo?.realName || userStore.userName || '用户'
 })
 
-// ===== 当前患者信息（从 userStore 获取） =====
-const currentPatient = computed(() => ({
-  patientId: userStore.userInfo?.patientId,
-  realName: userStore.userName || '用户',
-  caseNumber: userStore.userInfo?.caseNumber || '',
-  gender: userStore.userInfo?.gender || 'MALE',
-  age: userStore.userInfo?.age,
-}))
+// ===== 用户信息 =====
+const userInfo = computed(() => userStore.userInfo)
 
 // ===== 问候语 =====
 const greeting = computed(() => {
@@ -175,6 +141,9 @@ const greeting = computed(() => {
   if (hour < 22) return '晚上好'
   return '夜深了'
 })
+
+// ===== 候诊人数 =====
+const queueNumber = ref(0)
 
 // ===== 服务网格 =====
 const serviceItems = [
@@ -189,46 +158,31 @@ const serviceItems = [
   { key: 'more', label: '更多服务', icon: 'apps-o', bg: '#F5F5F5', color: '#9E9E9E' },
 ]
 
-// ===== 就诊人 =====
-const loadPatients = async () => {
-  // TODO: 从 API 获取就诊人列表
-  const userInfo = userStore.userInfo
-  if (userInfo) {
-    patientList.value = [
-      {
-        patientId: userInfo.patientId || 1,
-        realName: userStore.userName || '用户',
-        gender: userInfo.gender || 'MALE',
-        age: userInfo.age || 30,
-        caseNumber: userInfo.caseNumber || '----',
-        phone: userInfo.phone || ''
-      }
-    ]
-  }
-}
+// ============================================================
+// ✅ 所有路由跳转统一使用 router.push，不再使用 showToast
+// ============================================================
 
-const selectPatient = (patient: any) => {
-  // TODO: 切换就诊人
-  showToast('切换就诊人功能开发中')
-  showPatientSheet.value = false
-}
-
-const loadQueueInfo = async () => {
-  queueNumber.value = Math.floor(Math.random() * 15) + 1
-}
-
-// ===== 路由跳转 =====
+// ===== 底部 TabBar 相关 =====
+const goToPatientManager = () => router.push('/patient/patient-manager')
 const goToAppointment = () => router.push('/patient/appointment')
 const goToOrders = () => router.push('/patient/orders')
 const goToCheckin = () => router.push('/patient/checkin')
 const goToQueue = () => router.push('/patient/queue')
-const goToMessages = () => showToast('消息中心开发中')
-const goToPatientManager = () => router.push('/patient/patient-manager')
-const goToGuide = () => showToast('就诊指南')
-const goToCustomerService = () => showToast('联系客服：400-123-4567')
 const goToAI = () => router.push('/patient/ai')
-const showAllServices = () => showToast('全部服务')
 
+// ===== ✅ 新增：消息中心 =====
+const goToMessages = () => router.push('/patient/messages')
+
+// ===== ✅ 新增：就诊指南 =====
+const goToGuide = () => router.push('/patient/guide')
+
+// ===== ✅ 新增：联系客服 =====
+const goToCustomerService = () => router.push('/patient/customer-service')
+
+// ===== ✅ 新增：全部服务 =====
+const goToServices = () => router.push('/patient/services')
+
+// ===== 服务网格路由映射 =====
 const goToService = (key: string) => {
   const routeMap: Record<string, string> = {
     lab: '/patient/lab-booking',
@@ -242,74 +196,262 @@ const goToService = (key: string) => {
     more: '/patient/services',
   }
   const path = routeMap[key]
-  if (path) router.push(path)
-  else showToast('功能开发中')
+  if (path) {
+    router.push(path)
+  } else {
+    showToast('功能开发中')
+  }
+}
+
+// ===== 加载候诊信息 =====
+const loadQueueInfo = async () => {
+  const patientId = userInfo.value?.patientId
+  if (!patientId) return
+
+  try {
+    const res = await getQueueCount({ patientId })
+    queueNumber.value = res?.queueCount || 0
+  } catch (error) {
+    console.error('获取候诊人数失败', error)
+    queueNumber.value = 0
+  }
 }
 
 onMounted(() => {
-  loadPatients()
   loadQueueInfo()
 })
 </script>
 
 <style lang="scss" scoped>
-.home-page { min-height: 100vh; background: #F5F7FA; padding: 0 16px 80px; }
+.home-page {
+  min-height: 100vh;
+  background: #F5F7FA;
+  padding: 0 16px 80px;
+}
+
 .header-area {
   background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-  margin: 0 -16px 16px; padding: 20px 16px 24px; border-radius: 0 0 24px 24px; color: white;
+  margin: 0 -16px 16px;
+  padding: 20px 16px 24px;
+  border-radius: 0 0 24px 24px;
+  color: white;
 }
-.greeting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.greeting-text { font-size: 18px; font-weight: 500; margin-left: 8px; }
-.header-actions { display: flex; gap: 16px; }
+
+.greeting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.greeting-text {
+  font-size: 18px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 16px;
+}
+
 .patient-switcher {
-  display: flex; justify-content: space-between; align-items: center;
-  background: rgba(255,255,255,0.2); border-radius: 12px; padding: 12px 16px;
-  cursor: pointer; backdrop-filter: blur(4px);
-}
-.patient-info { display: flex; flex-direction: column; gap: 2px; }
-.patient-name { font-size: 16px; font-weight: 500; }
-.patient-id { font-size: 12px; opacity: 0.85; }
-.switch-arrow { font-size: 18px; opacity: 0.8; }
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s;
 
-.core-services { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  &:active {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+
+.patient-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.patient-name {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.patient-id {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.switch-arrow {
+  font-size: 18px;
+  opacity: 0.8;
+}
+
+.core-services {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .service-card {
-  background: white; border-radius: 12px; padding: 16px; display: flex;
-  align-items: center; gap: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  cursor: pointer; &:active { transform: scale(0.97); }
-}
-.service-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.service-text { flex: 1; .service-title { font-size: 15px; font-weight: 500; color: #1A1A2E; } .service-desc { font-size: 12px; color: #8B8B9E; margin-top: 2px; } }
-.service-arrow { color: #C4C4D6; font-size: 14px; }
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
 
-.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.service-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.service-text {
+  flex: 1;
+
+  .service-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #1A1A2E;
+  }
+
+  .service-desc {
+    font-size: 12px;
+    color: #8B8B9E;
+    margin-top: 2px;
+  }
+}
+
+.service-arrow {
+  color: #C4C4D6;
+  font-size: 14px;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
 .quick-item {
-  background: white; border-radius: 12px; padding: 16px; display: flex;
-  flex-direction: column; align-items: center; gap: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06); cursor: pointer; position: relative;
-  &:active { transform: scale(0.97); }
-}
-.quick-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.quick-label { font-size: 14px; font-weight: 500; color: #1A1A2E; }
-.quick-badge { position: absolute; top: 8px; right: 8px; background: #E91E63; color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; }
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  position: relative;
 
-.service-section { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.section-title { font-size: 16px; font-weight: 600; color: #1A1A2E; }
-.section-more { font-size: 13px; color: #8B8B9E; cursor: pointer; }
-.service-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 8px; }
-.grid-item { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; &:active { opacity: 0.7; } }
-.grid-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-.grid-label { font-size: 12px; color: #4A4A5E; text-align: center; }
-
-.patient-list { padding: 8px 16px 20px; }
-.patient-option {
-  display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px;
-  margin-bottom: 4px; cursor: pointer; &.active { background: #F0F4F0; }
+  &:active {
+    transform: scale(0.97);
+  }
 }
-.patient-detail { flex: 1; .patient-name { font-size: 16px; font-weight: 500; color: #1A1A2E; } .patient-meta { font-size: 13px; color: #8B8B9E; display: flex; gap: 12px; margin-top: 2px; } }
-.add-patient {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 14px; border: 2px dashed #D0D0D0; border-radius: 10px;
-  margin-top: 8px; cursor: pointer; color: #4A4A5E; font-size: 14px;
+
+.quick-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1A1A2E;
+}
+
+.quick-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #E91E63;
+  color: white;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.service-section {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A2E;
+}
+
+.section-more {
+  font-size: 13px;
+  color: #8B8B9E;
+  cursor: pointer;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px 8px;
+}
+
+.grid-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+
+  &:active {
+    opacity: 0.7;
+  }
+}
+
+.grid-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-label {
+  font-size: 12px;
+  color: #4A4A5E;
+  text-align: center;
 }
 </style>

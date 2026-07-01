@@ -802,9 +802,94 @@ Content-Type: application/json
 }
 
 
+### ========================================
+### 财务/药品管理测试（新增 charge_item 流程）
+### ========================================
 
+### 31. 查询待收费项目
+# 先挂号或开检查/检验/处置/处方，获取 registerId 后调用
+GET {{baseUrl}}/api/admin/finance/pending-items?registerId=6
+Authorization: Bearer {{token}}
 
+### 32. 查询已收费项目
+# 收费成功后调用
+GET {{baseUrl}}/api/admin/finance/paid-items?registerId=6
+Authorization: Bearer {{token}}
 
+### 33. 收费（勾选部分项目）
+# 从 pending-items 返回的 id 中选几个传入 itemIds
+POST {{baseUrl}}/api/admin/finance/charge
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "itemIds": [1, 2],
+  "chargeMethod": "CASH",
+  "amount": 325.00
+}
+
+### 34. 退费（勾选部分项目）
+# 从 paid-items 返回的 id 中选几个传入 itemIds
+POST {{baseUrl}}/api/admin/finance/refund
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 6,
+  "itemIds": [1],
+  "refundAmount": 300.00,
+  "refundReason": "患者要求退费"
+}
+
+### 35. 收费记录查询
+GET {{baseUrl}}/api/admin/finance/records?pageNum=1&pageSize=10&startDate=2026-05-01&endDate=2026-06-30
+Authorization: Bearer {{token}}
+
+### 36. 日结统计
+GET {{baseUrl}}/api/admin/finance/daily-summary?summaryDate=2026-05-23
+Authorization: Bearer {{token}}
+
+### 37. 药品库存查询
+GET {{baseUrl}}/api/admin/drug/inventory?pageNum=3&pageSize=10&stockAlert=0
+Authorization: Bearer {{token}}
+
+### 38. 发药
+# 处方状态需为 CHARGED
+POST {{baseUrl}}/api/admin/drug/dispense
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 1,
+  "pharmacistId": 1
+}
+
+### 39. 退药
+# 处方状态需为 DISPENSED
+POST {{baseUrl}}/api/admin/drug/refund
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "prescriptionId": 1,
+  "pharmacistId": 1,
+  "refundReason": "药品过敏"
+}
+
+### ========================================
+### 40. 查询待发药处方列表
+### ========================================
+
+GET {{baseUrl}}/api/admin/drug/pending-dispense
+Authorization: Bearer {{token}}
+
+### ========================================
+### 41. 查询可退药处方列表
+### ========================================
+
+GET {{baseUrl}}/api/admin/drug/pending-refund
+Authorization: Bearer {{token}}
 
 
 

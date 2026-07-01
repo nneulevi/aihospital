@@ -2,11 +2,13 @@ package com.neuedu.his.controller;
 
 import com.neuedu.his.mapper.DepartmentMapper;
 import com.neuedu.his.model.dto.*;
+import com.neuedu.his.model.entity.ChargeItem;
 import com.neuedu.his.model.entity.Department;
 import com.neuedu.his.model.vo.*;
 import com.neuedu.his.service.AdminService;
 import com.neuedu.his.service.EmployeeService;
 import com.neuedu.his.service.StatisticsService;
+import com.neuedu.his.util.JwtUtil;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -27,16 +29,26 @@ public class AdminController {
     private StatisticsService statisticsService;
     @Autowired
     private DepartmentMapper departmentMapper;
-    // ========== 原有接口 ==========
+
+    private Integer getOperatorId(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        return JwtUtil.getUserIdFromToken(authHeader.substring(7));
+    }
+
+    // ========== Finance APIs ==========
 
     @PostMapping("/finance/charge")
-    public void charge(@RequestBody @Valid ChargeRequestDTO request) {
-        adminService.charge(request);
+    public void charge(@RequestBody @Valid ChargeRequestDTO request,
+                       @RequestHeader("Authorization") String authHeader) {
+        adminService.charge(request, getOperatorId(authHeader));
     }
 
     @PostMapping("/finance/refund")
-    public void refund(@RequestBody @Valid RefundRequestDTO request) {
-        adminService.refund(request);
+    public void refund(@RequestBody @Valid RefundRequestDTO request,
+                       @RequestHeader("Authorization") String authHeader) {
+        adminService.refund(request, getOperatorId(authHeader));
     }
 
     @GetMapping("/finance/records")
@@ -48,6 +60,18 @@ public class AdminController {
     public DailySummaryVO getDailySummary(@Valid DailySummaryQueryDTO query) {
         return adminService.getDailySummary(query);
     }
+
+    @GetMapping("/finance/pending-items")
+    public List<ChargeItem> getPendingItems(@RequestParam Integer registerId) {
+        return adminService.getPendingItems(registerId);
+    }
+
+    @GetMapping("/finance/paid-items")
+    public List<ChargeItem> getPaidItems(@RequestParam Integer registerId) {
+        return adminService.getPaidItems(registerId);
+    }
+
+    // ========== Drug APIs ==========
 
     @PostMapping("/drug/dispense")
     public void dispense(@RequestBody @Valid DispenseRequestDTO request) {
@@ -64,10 +88,20 @@ public class AdminController {
         return adminService.getDrugInventory(query);
     }
 
-    // ========== 新增接口 ==========
+    @GetMapping("/drug/pending-dispense")
+    public List<PrescriptionDispenseVO> getPendingDispense() {
+        return adminService.getPendingDispense();
+    }
+
+    @GetMapping("/drug/pending-refund")
+    public List<PrescriptionRefundVO> getPendingRefund() {
+        return adminService.getPendingRefund();
+    }
+
+    // ========== Employee APIs ==========
 
     /**
-     * 创建职员档案（医生/管理员）
+     * Create employee profile (doctor/admin)
      */
     @PostMapping("/employee/create")
     public Integer createEmployee(@RequestBody @Valid EmployeeCreateRequestDTO request) {
@@ -75,7 +109,7 @@ public class AdminController {
     }
 
     /**
-     * 获取所有职员列表
+     * Get all employee list
      */
     @GetMapping("/employee/list")
     public List<EmployeeListItemVO> listEmployees() {
@@ -83,7 +117,7 @@ public class AdminController {
     }
 
     /**
-     * 获取所有医生列表
+     * Get all doctor list
      */
     @GetMapping("/employee/doctors")
     public List<EmployeeListItemVO> listDoctors() {
@@ -91,7 +125,7 @@ public class AdminController {
     }
 
     /**
-     * 获取所有科室列表
+     * Get all department list
      */
     @GetMapping("/department/list")
     public List<Department> listDepartments() {
@@ -99,7 +133,7 @@ public class AdminController {
     }
 
     /**
-     * 医生统计（接诊量 + 复查率）
+     * Doctor statistics (visit count + revisit rate)
      */
     @GetMapping("/statistics/doctor")
     public List<DoctorStatsVO> getDoctorStats() {
@@ -107,7 +141,7 @@ public class AdminController {
     }
 
     /**
-     * 部门统计
+     * Department statistics
      */
     @GetMapping("/statistics/dept")
     public List<DeptStatsVO> getDeptStats() {

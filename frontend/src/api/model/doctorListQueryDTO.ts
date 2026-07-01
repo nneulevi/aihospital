@@ -10,7 +10,7 @@ export interface DoctorListQueryDTO {
   pageNum?: number;
   /**
    * @minimum 1
-   * @maximum 50
+   * @maximum 10000
    */
   pageSize?: number;
   deptId: number;

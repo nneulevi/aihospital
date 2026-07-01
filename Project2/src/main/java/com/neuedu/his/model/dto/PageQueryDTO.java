@@ -8,8 +8,8 @@ import lombok.Data;
 public class PageQueryDTO {
     @Min(1)
     private Integer pageNum = 1;
-    
+
     @Min(1)
-    @Max(50)
+    @Max(10000)
     private Integer pageSize = 10;
 }
