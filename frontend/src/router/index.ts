@@ -152,7 +152,7 @@ const patientRoutes: RouteRecordRaw[] = [
             // ===== ✅ 新增：新创建的页面路由 =====
             { path: 'messages', name: 'Messages', component: Messages, meta: { role: 'PATIENT' } },
             { path: 'consult', name: 'Consult', component: Consult, meta: { role: 'PATIENT' } },
-            { path: 'doctor-schedule', name: 'DoctorSchedule', component: DoctorSchedule, meta: { role: 'PATIENT' } },
+            { path: 'doctor-schedule', name: 'PatientDoctorSchedule', component: DoctorSchedule, meta: { role: 'PATIENT' } },
             { path: 'revisit', name: 'Revisit', component: Revisit, meta: { role: 'PATIENT' } },
             { path: 'physical-exam', name: 'PhysicalExam', component: PhysicalExam, meta: { role: 'PATIENT' } },
             { path: 'services', name: 'Services', component: Services, meta: { role: 'PATIENT' } },

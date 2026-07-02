@@ -40,4 +40,15 @@ public interface CheckRequestMapper {
                                         @Param("orderState") String orderState,
                                         @Param("offset") Integer offset,
                                         @Param("limit") Integer limit);
+
+    /**
+     * 查询患者待预约的检查列表（医生开单、未预约、状态CREATED）- 由 XML 实现
+     */
+    List<com.neuedu.his.model.vo.PendingCheckRequestVO> selectPendingCheckRequests(@Param("patientId") Integer patientId);
+
+    /**
+     * 患者预约检查（更新预约时间和状态）- 由 XML 实现
+     */
+    int bookCheckRequest(@Param("id") Integer id,
+                         @Param("bookedTime") java.time.LocalDateTime bookedTime);
 }

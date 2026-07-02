@@ -892,7 +892,45 @@ GET {{baseUrl}}/api/admin/drug/pending-refund
 Authorization: Bearer {{token}}
 
 
+### ========================================
+### 42. 查询患者待预约检验列表
+### ========================================
+# 查询医生开的、未预约的、状态为 CREATED 的检验申请
+GET {{baseUrl}}/api/patient/inspection-requests?patientId=1
+Authorization: Bearer {{patientToken}}
 
+### ========================================
+### 43. 查询患者待预约检查列表
+### ========================================
+# 查询医生开的、未预约的、状态为 CREATED 的检查申请
+GET {{baseUrl}}/api/patient/check-requests?patientId=1
+Authorization: Bearer {{patientToken}}
+
+### ========================================
+### 44. 患者预约检验
+### ========================================
+# 预约成功后更新 booked_time 和状态为 BOOKED
+PUT {{baseUrl}}/api/patient/inspection-request/book
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "requestId": 2,
+  "bookedTime": "2026-07-02T09:00:00"
+}
+
+### ========================================
+### 45. 患者预约检查
+### ========================================
+# 预约成功后更新 booked_time 和状态为 BOOKED
+PUT {{baseUrl}}/api/patient/check-request/book
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "requestId": 3,
+  "bookedTime": "2026-07-02T09:00:00"
+}
 
 
 

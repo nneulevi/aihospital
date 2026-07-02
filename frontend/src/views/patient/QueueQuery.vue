@@ -40,8 +40,16 @@
       </div>
     </div>
 
+    <!-- 未报到提示 -->
+    <div v-else-if="!loading && !currentQueue" class="empty-state no-queue">
+      <van-icon name="clock-o" size="48" color="#C4C4D6" />
+      <p>您当前不在候诊队列中</p>
+      <p class="sub-tip">请先完成就诊报到</p>
+      <van-button type="primary" round size="small" @click="goToCheckin">去报到</van-button>
+    </div>
+
     <!-- ===== 候诊列表 ===== -->
-    <div class="queue-list-section">
+    <div v-if="queueList.length > 0" class="queue-list-section">
       <div class="section-header">
         <span class="section-title">📋 候诊队列</span>
         <span class="section-count">共 {{ queueList.length }} 人</span>
@@ -53,7 +61,7 @@
             :key="item.registerId"
             class="queue-item"
             :class="{
-            'is-current': item.registerId === currentQueue?.registerId,
+            'is-current': item.registerId === currentRegisterId,
             'is-passed': item.status === 'PASSED'
           }"
         >
@@ -69,17 +77,11 @@
           </div>
           <div class="queue-status-tag">
             <van-tag
-                :type="item.registerId === currentQueue?.registerId ? 'warning' : 'default'"
-                size="small"
+                :type="item.registerId === currentRegisterId ? 'warning' : 'default'"
             >
-              {{ item.registerId === currentQueue?.registerId ? '当前' : '等待中' }}
+              {{ item.registerId === currentRegisterId ? '当前' : '等待中' }}
             </van-tag>
           </div>
-        </div>
-
-        <div v-if="queueList.length === 0" class="empty-state">
-          <van-icon name="clock-o" size="48" color="#C4C4D6" />
-          <p>当前没有候诊患者</p>
         </div>
       </div>
     </div>
@@ -109,106 +111,121 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
+import { getQueueStatus, getQueueDepts, getTodayRegisters } from '@/api'
+import { useUserStore } from '@/stores/user'
+import type { QueueStatusVO, DeptQueueVO, QueueItemVO } from '@/api/model'
 
 const router = useRouter()
+const route = useRoute()
+const userStore = useUserStore()
 
 // ============ 状态 ============
+const loading = ref(false)
 const refreshing = ref(false)
 const lastUpdateTime = ref('')
 const selectedDeptId = ref<number | null>(null)
-const currentQueue = ref<any>(null)
-const queueList = ref<any[]>([])
-const availableDepts = ref<any[]>([])
+const currentQueue = ref<QueueStatusVO | null>(null)
+const queueList = ref<QueueItemVO[]>([])
+const availableDepts = ref<DeptQueueVO[]>([])
+const currentRegisterId = ref<number | null>(null)
 let refreshTimer: number | null = null
-
-// ============ 模拟数据 ============
-
-// 模拟候诊数据
-const mockQueueData = {
-  depts: [
-    { deptId: 2, deptName: '呼吸内科' },
-    { deptId: 4, deptName: '心血管内科' },
-    { deptId: 1, deptName: '神经内科' }
-  ],
-  queues: {
-    2: [
-      { registerId: 1001, patientName: '张明', deptName: '呼吸内科', doctorName: '张敏', status: 'WAITING' },
-      { registerId: 1005, patientName: '李芳', deptName: '呼吸内科', doctorName: '张敏', status: 'WAITING' },
-      { registerId: 1006, patientName: '王强', deptName: '呼吸内科', doctorName: '李华', status: 'WAITING' },
-      { registerId: 1007, patientName: '刘梅', deptName: '呼吸内科', doctorName: '李华', status: 'WAITING' },
-      { registerId: 1008, patientName: '赵磊', deptName: '呼吸内科', doctorName: '张敏', status: 'WAITING' }
-    ],
-    4: [
-      { registerId: 1002, patientName: '张秀兰', deptName: '心血管内科', doctorName: '孙伟', status: 'WAITING' },
-      { registerId: 1009, patientName: '周明', deptName: '心血管内科', doctorName: '孙伟', status: 'WAITING' },
-      { registerId: 1010, patientName: '吴丽', deptName: '心血管内科', doctorName: '郑红', status: 'WAITING' }
-    ],
-    1: [
-      { registerId: 1003, patientName: '王建国', deptName: '神经内科', doctorName: '王建国', status: 'WAITING' },
-      { registerId: 1011, patientName: '陈芳', deptName: '神经内科', doctorName: '李敏', status: 'WAITING' }
-    ]
-  }
-}
 
 // ============ 计算属性 ============
 
 const estimatedWaitTime = computed(() => {
   if (!currentQueue.value?.aheadCount) return 0
-  // 假设每人平均15分钟
-  return Math.ceil(currentQueue.value.aheadCount * 15)
+  return Math.ceil((currentQueue.value.aheadCount || 0) * 15)
 })
 
 // ============ 方法 ============
 
+// 获取 registerId：优先路由参数，其次从今日已报到记录推导
+const resolveRegisterId = async (): Promise<number | null> => {
+  // 1. 优先从路由参数获取
+  const routeId = route.query.registerId
+  if (routeId) return Number(routeId)
+
+  // 2. 从今日挂号记录中找已报到的（checkinStatus !== 0）
+  const patientId = userStore.patientId
+  if (!patientId) return null
+
+  try {
+    const res = await getTodayRegisters({ patientId })
+    const checkedIn = (res || []).find((r: any) => r.checkinStatus !== 0)
+    return checkedIn?.registerId || null
+  } catch {
+    return null
+  }
+}
+
 // 加载候诊数据
 const loadQueueData = async () => {
   refreshing.value = true
+  loading.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 400))
-
-    // 设置科室列表
-    availableDepts.value = mockQueueData.depts
-
-    // 默认选中第一个科室
-    if (!selectedDeptId.value && availableDepts.value.length > 0) {
-      selectedDeptId.value = availableDepts.value[0].deptId
+    const patientId = userStore.patientId
+    if (!patientId) {
+      showToast('请先登录')
+      return
     }
 
-    // 获取当前科室的候诊列表
-    const deptId = selectedDeptId.value || availableDepts.value[0]?.deptId
-    if (deptId) {
-      const records = mockQueueData.queues[deptId as keyof typeof mockQueueData.queues] || []
-      queueList.value = records
+    // 获取 registerId
+    const registerId = await resolveRegisterId()
+    if (!registerId) {
+      // 没有 registerId，只加载科室列表，显示未报到状态
+      await loadDeptList(patientId)
+      return
+    }
 
-      // 模拟当前排队状态（取第一条作为当前患者）
-      if (records.length > 0) {
-        // 随机生成前面人数（2-8人）
-        const ahead = Math.floor(Math.random() * 8) + 2
-        const currentCalling = Math.floor(Math.random() * 20) + 1
+    currentRegisterId.value = registerId
 
-        currentQueue.value = {
-          registerId: records[0].registerId,
-          deptName: records[0].deptName,
-          queueNumber: String(currentCalling).padStart(2, '0'),
-          aheadCount: ahead,
-          currentCalling: String(currentCalling - ahead).padStart(2, '0'),
-          currentRoom: `${Math.floor(Math.random() * 5) + 1}号诊室`
-        }
-      } else {
-        currentQueue.value = null
+    // 并行请求：候诊状态 + 科室列表
+    const [statusRes, deptsRes] = await Promise.all([
+      getQueueStatus({ registerId }),
+      getQueueDepts({ patientId })
+    ])
+
+    // 处理候诊状态
+    if (statusRes) {
+      currentQueue.value = statusRes
+      queueList.value = statusRes.queueList || []
+      // 同步选中科室
+      if (statusRes.deptName && deptsRes) {
+        const matched = deptsRes.find((d: DeptQueueVO) => d.deptName === statusRes.deptName)
+        if (matched) selectedDeptId.value = matched.deptId || null
       }
+    }
+
+    // 处理科室列表
+    if (deptsRes) {
+      availableDepts.value = deptsRes
     }
 
     lastUpdateTime.value = dayjs().format('HH:mm:ss')
 
-  } catch {
-    showToast('加载候诊数据失败')
+  } catch (error: any) {
+    console.error('加载候诊数据失败:', error)
+    const msg = error?.response?.data?.message || error?.response?.data?.msg || '加载候诊数据失败'
+    showToast(msg)
   } finally {
     refreshing.value = false
+    loading.value = false
+  }
+}
+
+// 加载科室列表（无 registerId 时）
+const loadDeptList = async (patientId: number) => {
+  try {
+    const res = await getQueueDepts({ patientId })
+    if (res) {
+      availableDepts.value = res
+    }
+  } catch (error: any) {
+    console.error('加载科室列表失败:', error)
   }
 }
 
@@ -217,16 +234,27 @@ const refreshQueue = () => {
   loadQueueData()
 }
 
-// 切换科室
-const switchDept = (deptId: number) => {
+// 切换科室（仅切换显示，不重新加载，因为状态绑定到 registerId）
+const switchDept = (deptId: number | undefined) => {
+  // ✅ 修复：添加空值检查
+  if (deptId === undefined || deptId === null) {
+    console.warn('⚠️ 无效的科室ID:', deptId)
+    showToast('科室ID无效')
+    return
+  }
+
   selectedDeptId.value = deptId
-  loadQueueData()
+  showToast('已切换科室视图')
+}
+
+// 去报到
+const goToCheckin = () => {
+  router.push('/patient/checkin')
 }
 
 // ============ 自动刷新 ============
 
 const startAutoRefresh = () => {
-  // 每30秒刷新一次
   refreshTimer = window.setInterval(() => {
     loadQueueData()
   }, 30000)
@@ -511,6 +539,19 @@ onUnmounted(() => {
   p {
     margin-top: 8px;
     color: #6B6B7E;
+  }
+}
+
+.no-queue {
+  background: white;
+  border-radius: 12px;
+  padding: 40px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  .sub-tip {
+    font-size: 13px;
+    color: #C4C4D6;
+    margin-bottom: 16px;
   }
 }
 </style>

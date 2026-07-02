@@ -57,7 +57,7 @@
         <van-icon name="clock-o" size="64" color="#C4C4D6" />
         <p class="empty-title">今日暂无就诊安排</p>
         <p class="empty-desc">您今天没有需要报到的挂号</p>
-        <van-button type="primary" round size="small" @click="goToHome">返回首页</van-button>
+        <van-button type="primary" round :size="buttonSize" @click="goToHome">返回首页</van-button>
       </div>
 
       <div v-if="todayRecords.length > 0" class="step-actions">
@@ -120,7 +120,7 @@
             block
             round
             :loading="submitting"
-            @click="submitCheckin"
+            @click="handleSubmitCheckin"
         >
           确认报到
         </van-button>
@@ -143,7 +143,7 @@
           </div>
           <div class="queue-position">
             <span class="position-label">当前前面还有</span>
-            <span class="position-value">{{ checkinResult?.aheadCount || 0 }} 人</span>
+            <span class="position-value">{{ checkinResult?.aheadCount ?? 0 }} 人</span>
           </div>
         </div>
 
@@ -176,10 +176,12 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import dayjs from 'dayjs'
-import { getTodayRegisters, submitCheckin } from '@/api'
+import { getTodayRegisters } from '@/api'
+import { request } from '@/utils/request'
 import { useUserStore } from '@/stores/user'
 import type { TodayRegisterVO, CheckinResultVO } from '@/api/model'
 
+// ✅ 修正：避免与导入的 submitCheckin 冲突，改名 handleSubmitCheckin
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
@@ -188,7 +190,11 @@ const stepStatus = ref(0)
 const selectedRecord = ref<TodayRegisterVO | null>(null)
 const submitting = ref(false)
 const todayRecords = ref<TodayRegisterVO[]>([])
-const checkinResult = ref<{ queueNumber: string; aheadCount: number } | null>(null)
+const checkinResult = ref<CheckinResultVO | null>(null)
+
+// ✅ 修正：van-tag size 类型
+const tagSize = 'small' as const
+const buttonSize = 'small' as const
 
 // ============ 加载今日就诊 ============
 const loadTodayRecords = async () => {
@@ -234,40 +240,41 @@ const selectRecord = (record: TodayRegisterVO) => {
 }
 
 // ============ 提交报到 ============
-const submitCheckin = async () => {
+const handleSubmitCheckin = async () => {
   if (!selectedRecord.value) {
     showToast('请选择就诊记录')
     return
   }
 
-  const registerId = selectedRecord.value.registerId!
+  // ✅ 修正：确保 registerId 是 number 类型
+  const registerId = selectedRecord.value.registerId
+  if (!registerId) {
+    showToast('挂号ID无效')
+    return
+  }
+
   console.log('📤 [Checkin] ===== 提交报到 =====')
   console.log('📤 [Checkin] registerId:', registerId)
 
   submitting.value = true
   try {
-    // 🔥 使用 request.ts 的 request.post，直接返回 CheckinResultVO
-    const res = await submitCheckin({ registerId })
+    // 直接使用 request.post，明确指定返回类型
+    const res = await request.post<CheckinResultVO>('/patient/checkin/submit', { registerId })
     console.log('📥 [Checkin] 报到响应:', res)
-    console.log('📥 [Checkin] 响应类型:', typeof res)
-    console.log('📥 [Checkin] 是否有 queueNumber:', res && 'queueNumber' in res)
 
-    // 🔥 空值安全检查
+    // 空值安全检查
     if (!res) {
       showToast('后端返回为空，请检查网络或接口')
       return
     }
 
-    checkinResult.value = {
-      queueNumber: res.queueNumber || '--',
-      aheadCount: res.aheadCount ?? 0
-    }
+    // ✅ 修正：res 已经是 CheckinResultVO 类型，不需要 .data
+    checkinResult.value = res
     showSuccessToast('报到成功')
     stepStatus.value = 2
   } catch (error: any) {
     console.error('❌ [Checkin] 报到失败:', error)
 
-    // 详细错误信息
     if (error.response) {
       console.error('📥 错误响应状态:', error.response.status)
       console.error('📥 错误响应数据:', error.response.data)
@@ -292,7 +299,18 @@ const formatDate = (date?: string) => {
 
 // ============ 路由跳转 ============
 const goToHome = () => router.push('/patient/home')
-const goToQueue = () => router.push('/patient/queue')
+
+// ✅ 修正：带 registerId 跳转到候诊查询
+const goToQueue = () => {
+  if (selectedRecord.value?.registerId) {
+    router.push({
+      path: '/patient/queue',
+      query: { registerId: String(selectedRecord.value.registerId) }
+    })
+  } else {
+    router.push('/patient/queue')
+  }
+}
 
 // ============ 生命周期 ============
 onMounted(() => {
@@ -308,7 +326,6 @@ onMounted(() => {
   padding-bottom: 80px;
 }
 
-// ===== 步骤引导 =====
 .steps-guide {
   background: white;
   padding: 16px 16px 0;
@@ -320,12 +337,10 @@ onMounted(() => {
   }
 }
 
-// ===== 步骤内容 =====
 .step-content {
   padding: 0 16px;
 }
 
-// ===== 区域标题 =====
 .section-title {
   display: flex;
   justify-content: space-between;
@@ -341,7 +356,6 @@ onMounted(() => {
   }
 }
 
-// ===== 就诊记录卡片 =====
 .record-card {
   background: white;
   border-radius: 12px;
@@ -396,7 +410,6 @@ onMounted(() => {
   }
 }
 
-// ===== 确认报到 =====
 .confirm-card {
   background: white;
   border-radius: 12px;
@@ -460,7 +473,6 @@ onMounted(() => {
   }
 }
 
-// ===== 步骤按钮 =====
 .step-actions {
   display: flex;
   flex-direction: column;
@@ -474,7 +486,6 @@ onMounted(() => {
   }
 }
 
-// ===== 空状态 =====
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -490,7 +501,6 @@ onMounted(() => {
   }
 }
 
-// ===== 报到成功 =====
 .success-content {
   padding-top: 20px;
 }

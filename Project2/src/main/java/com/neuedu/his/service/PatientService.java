@@ -70,4 +70,16 @@ public interface PatientService {
 
     /** 候诊角标 */
     QueueCountVO getQueueCount(Integer patientId);
+
+    /** 查询患者待预约的检验列表 */
+    List<com.neuedu.his.model.vo.PendingInspectionRequestVO> getPendingInspectionRequests(InspectionRequestQueryDTO query);
+
+    /** 查询患者待预约的检查列表 */
+    List<com.neuedu.his.model.vo.PendingCheckRequestVO> getPendingCheckRequests(CheckRequestQueryDTO query);
+
+    /** 患者预约检验 */
+    void bookInspectionRequest(BookRequestDTO request);
+
+    /** 患者预约检查 */
+    void bookCheckRequest(BookRequestDTO request);
 }

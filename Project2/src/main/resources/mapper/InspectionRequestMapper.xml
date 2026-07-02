@@ -62,4 +62,36 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <!-- 查询患者待预约的检验列表 -->
+    <select id="selectPendingInspectionRequests" resultType="com.neuedu.his.model.vo.PendingInspectionRequestVO">
+        SELECT
+            ir.id,
+            ir.register_id AS registerId,
+            ir.medical_technology_id AS medicalTechnologyId,
+            mt.tech_name AS techName,
+            ir.inspection_info AS inspectionInfo,
+            ir.inspection_position AS inspectionPosition,
+            mt.tech_price AS techPrice,
+            ir.creation_time AS creationTime
+        FROM inspection_request ir
+        INNER JOIN register r ON ir.register_id = r.id
+        LEFT JOIN medical_technology mt ON ir.medical_technology_id = mt.id
+        WHERE r.patient_id = #{patientId}
+          AND ir.is_self_booked = 0
+          AND ir.booked_time IS NULL
+          AND ir.inspection_state = 'CREATED'
+        ORDER BY ir.creation_time DESC
+    </select>
+
+    <!-- 患者预约检验 -->
+    <update id="bookInspectionRequest">
+        UPDATE inspection_request
+        SET booked_time = #{bookedTime},
+            inspection_state = 'BOOKED'
+        WHERE id = #{id}
+          AND inspection_state = 'CREATED'
+          AND booked_time IS NULL
+          AND is_self_booked = 0
+    </update>
+
 </mapper>

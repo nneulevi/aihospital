@@ -39,4 +39,15 @@ public interface InspectionRequestMapper {
                                              @Param("orderState") String orderState,
                                              @Param("offset") Integer offset,
                                              @Param("limit") Integer limit);
+
+    /**
+     * 查询患者待预约的检验列表（医生开单、未预约、状态CREATED）- 由 XML 实现
+     */
+    List<com.neuedu.his.model.vo.PendingInspectionRequestVO> selectPendingInspectionRequests(@Param("patientId") Integer patientId);
+
+    /**
+     * 患者预约检验（更新预约时间和状态）- 由 XML 实现
+     */
+    int bookInspectionRequest(@Param("id") Integer id,
+                              @Param("bookedTime") java.time.LocalDateTime bookedTime);
 }

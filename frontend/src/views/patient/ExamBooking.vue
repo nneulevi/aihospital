@@ -42,10 +42,10 @@
             />
           </div>
           <div class="project-info">
-            <div class="project-name">{{ item.name }}</div>
+            <div class="project-name">{{ item.techName || item.name }}</div>
             <div class="project-desc">
-              <span>{{ item.typeName }}</span>
-              <span>{{ item.bodyPart || '--' }}</span>
+              <span>{{ item.typeName || '检查科' }}</span>
+              <span>{{ item.checkPosition || item.bodyPart || '--' }}</span>
             </div>
             <div class="project-tips" v-if="item.tips">
               <van-icon name="info-o" />
@@ -53,13 +53,14 @@
             </div>
           </div>
           <div class="project-price">
-            ¥{{ item.price.toFixed(2) }}
+            ¥{{ (item.techPrice || item.price || 0).toFixed(2) }}
           </div>
         </div>
 
         <div v-if="filteredProjects.length === 0" class="empty-state">
           <van-icon name="search" size="48" color="#C4C4D6" />
-          <p>暂无{{ getTypeLabel(activeType) }}项目</p>
+          <p>暂无待预约的检查项目</p>
+          <p style="font-size: 12px; color: #999; margin-top: 4px;">请先由医生开具检查申请</p>
         </div>
       </div>
 
@@ -134,8 +135,8 @@
         <div class="card-title">已选项目 ({{ selectedItems.length }})</div>
         <div class="selected-items">
           <div v-for="item in selectedItems" :key="item.id" class="selected-item">
-            <span class="item-name">{{ item.name }}</span>
-            <span class="item-price">¥{{ item.price.toFixed(2) }}</span>
+            <span class="item-name">{{ item.techName || item.name }}</span>
+            <span class="item-price">¥{{ (item.techPrice || item.price || 0).toFixed(2) }}</span>
           </div>
           <div class="total-price">
             <span>合计</span>
@@ -170,7 +171,7 @@
         <div class="booking-info">
           <div class="info-row">
             <span class="label">检查项目</span>
-            <span class="value">{{ selectedItems.map(i => i.name).join('、') }}</span>
+            <span class="value">{{ selectedItems.map(i => i.techName || i.name).join('、') }}</span>
           </div>
           <div class="info-row">
             <span class="label">检查日期</span>
@@ -239,12 +240,19 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import dayjs from 'dayjs'
+import {
+  getCurrentPatient,
+  list,
+  getPendingCheckRequests,
+  bookCheckRequest
+} from '@/api'
 
 const router = useRouter()
 
 // ============ 状态 ============
 const step = ref(1)
 const activeType = ref('all')
+const projects = ref<any[]>([])
 const selectedItems = ref<any[]>([])
 const selectedPatient = ref<any>(null)
 const selectedDate = ref('')
@@ -252,10 +260,9 @@ const selectedTime = ref('')
 const submitting = ref(false)
 const showPatientSheet = ref(false)
 const bookingResult = ref<any>(null)
+const patientList = ref<any[]>([])
 
-// ============ 模拟数据 ============
-
-// 检查类型
+// ============ 检查类型（用于前端筛选） ============
 const examTypes = [
   { key: 'all', label: '全部', icon: 'apps-o' },
   { key: 'radiology', label: '放射科', icon: 'scan-o' },
@@ -265,43 +272,67 @@ const examTypes = [
   { key: 'other', label: '其他', icon: 'medical-o' },
 ]
 
-// 检查项目
-const projects = [
-  // 放射科
-  { id: 101, name: '胸部X光（DR）', type: 'radiology', typeName: '放射科', bodyPart: '胸部', price: 120.00, tips: '无需特殊准备' },
-  { id: 102, name: '胸部CT平扫', type: 'radiology', typeName: '放射科', bodyPart: '胸部', price: 450.00, tips: '需空腹4小时' },
-  { id: 103, name: '头颅CT平扫', type: 'radiology', typeName: '放射科', bodyPart: '头部', price: 380.00, tips: '无需特殊准备' },
-  { id: 104, name: '腰椎X光（DR）', type: 'radiology', typeName: '放射科', bodyPart: '腰椎', price: 150.00, tips: '无需特殊准备' },
-  { id: 105, name: '骨密度检测', type: 'radiology', typeName: '放射科', bodyPart: '全身', price: 200.00, tips: '无需特殊准备' },
+// 检查类型映射（后端返回的类型映射到前端分类）
+const typeMapping: Record<string, string> = {
+  'RADIOLOGY': 'radiology',
+  'ULTRASOUND': 'ultrasound',
+  'ENDOSCOPY': 'endoscopy',
+  'ECG': 'ecg',
+  'CHECK': 'other',
+  'INSPECTION': 'other',
+}
 
-  // 超声科
-  { id: 201, name: '腹部彩超', type: 'ultrasound', typeName: '超声科', bodyPart: '腹部', price: 280.00, tips: '需空腹8小时以上' },
-  { id: 202, name: '心脏彩超', type: 'ultrasound', typeName: '超声科', bodyPart: '心脏', price: 350.00, tips: '无需特殊准备' },
-  { id: 203, name: '甲状腺彩超', type: 'ultrasound', typeName: '超声科', bodyPart: '甲状腺', price: 200.00, tips: '无需特殊准备' },
-  { id: 204, name: '乳腺彩超', type: 'ultrasound', typeName: '超声科', bodyPart: '乳腺', price: 220.00, tips: '无需特殊准备' },
-  { id: 205, name: '颈动脉彩超', type: 'ultrasound', typeName: '超声科', bodyPart: '颈部', price: 300.00, tips: '无需特殊准备' },
+// 类型名称映射
+const typeNameMapping: Record<string, string> = {
+  'RADIOLOGY': '放射科',
+  'ULTRASOUND': '超声科',
+  'ENDOSCOPY': '内镜科',
+  'ECG': '心电图',
+  'CHECK': '检查科',
+  'INSPECTION': '检验科',
+}
 
-  // 内镜科
-  { id: 301, name: '胃镜', type: 'endoscopy', typeName: '内镜科', bodyPart: '胃', price: 350.00, tips: '需空腹8小时以上，需家属陪同' },
-  { id: 302, name: '肠镜', type: 'endoscopy', typeName: '内镜科', bodyPart: '肠道', price: 420.00, tips: '需提前1天做肠道准备，需家属陪同' },
-  { id: 303, name: '无痛胃镜', type: 'endoscopy', typeName: '内镜科', bodyPart: '胃', price: 550.00, tips: '需空腹8小时以上，需家属陪同' },
-  { id: 304, name: '无痛肠镜', type: 'endoscopy', typeName: '内镜科', bodyPart: '肠道', price: 650.00, tips: '需提前1天做肠道准备，需家属陪同' },
+// 检查前注意事项映射
+const examTipsMap: Record<string, string[]> = {
+  radiology: ['检查前请取下金属物品（项链、手表、钥匙等）', '孕妇请提前告知医生'],
+  ultrasound: ['腹部超声需空腹8小时以上', '盆腔超声需憋尿'],
+  endoscopy: ['需空腹8小时以上', '需家属陪同', '检查前签署知情同意书'],
+  ecg: ['检查前请勿剧烈运动', '保持心情平静'],
+  other: ['请根据医生指导进行准备'],
+}
 
-  // 心电图
-  { id: 401, name: '常规心电图', type: 'ecg', typeName: '心电图', bodyPart: '心脏', price: 80.00, tips: '无需特殊准备' },
-  { id: 402, name: '24小时动态心电图', type: 'ecg', typeName: '心电图', bodyPart: '心脏', price: 280.00, tips: '需佩戴24小时' },
-  { id: 403, name: '运动平板试验', type: 'ecg', typeName: '心电图', bodyPart: '心脏', price: 320.00, tips: '需穿运动鞋' },
+// ============ 计算属性 ============
 
-  // 其他
-  { id: 501, name: '脑电图', type: 'other', typeName: '其他', bodyPart: '头部', price: 180.00, tips: '需洗头、保持清醒' },
-  { id: 502, name: '肌电图', type: 'other', typeName: '其他', bodyPart: '四肢', price: 220.00, tips: '无需特殊准备' },
-]
+const filteredProjects = computed(() => {
+  if (activeType.value === 'all') return projects.value
+  return projects.value.filter(p => {
+    const type = typeMapping[p.type] || 'other'
+    return type === activeType.value
+  })
+})
 
-// 就诊人
-const patientList = [
-  { patientId: 1, realName: '张明', gender: 'MALE', age: 35, caseNumber: 'HN202600001', isDefault: true },
-  { patientId: 2, realName: '张秀兰', gender: 'FEMALE', age: 68, caseNumber: 'HN202600002', isDefault: false },
-]
+const totalPrice = computed(() => {
+  return selectedItems.value.reduce((sum, item) => sum + (item.techPrice || item.price || 0), 0)
+})
+
+const selectAll = computed({
+  get: () => {
+    return filteredProjects.value.length > 0 &&
+        filteredProjects.value.every(p => selectedItems.value.some(i => i.id === p.id))
+  },
+  set: (val) => {
+    if (val) {
+      filteredProjects.value.forEach(p => {
+        if (!selectedItems.value.some(i => i.id === p.id)) {
+          selectedItems.value.push(p)
+        }
+      })
+    } else {
+      const ids = filteredProjects.value.map(p => p.id)
+      selectedItems.value = selectedItems.value.filter(i => !ids.includes(i.id))
+    }
+  }
+})
 
 // 可选日期
 const availableDates = computed(() => {
@@ -328,45 +359,6 @@ const timeSlots = [
   { value: '15:00-16:00', label: '15:00-16:00', disabled: false },
   { value: '16:00-17:00', label: '16:00-17:00', disabled: false },
 ]
-
-// 检查类型对应的注意事项
-const examTipsMap: Record<string, string[]> = {
-  radiology: ['检查前请取下金属物品（项链、手表、钥匙等）', '孕妇请提前告知医生'],
-  ultrasound: ['腹部超声需空腹8小时以上', '盆腔超声需憋尿'],
-  endoscopy: ['需空腹8小时以上', '需家属陪同', '检查前签署知情同意书'],
-  ecg: ['检查前请勿剧烈运动', '保持心情平静'],
-  other: ['请根据医生指导进行准备'],
-}
-
-// ============ 计算属性 ============
-
-const filteredProjects = computed(() => {
-  if (activeType.value === 'all') return projects
-  return projects.filter(p => p.type === activeType.value)
-})
-
-const totalPrice = computed(() => {
-  return selectedItems.value.reduce((sum, item) => sum + item.price, 0)
-})
-
-const selectAll = computed({
-  get: () => {
-    return filteredProjects.value.length > 0 &&
-        filteredProjects.value.every(p => selectedItems.value.some(i => i.id === p.id))
-  },
-  set: (val) => {
-    if (val) {
-      filteredProjects.value.forEach(p => {
-        if (!selectedItems.value.some(i => i.id === p.id)) {
-          selectedItems.value.push(p)
-        }
-      })
-    } else {
-      const ids = filteredProjects.value.map(p => p.id)
-      selectedItems.value = selectedItems.value.filter(i => !ids.includes(i.id))
-    }
-  }
-})
 
 // ============ 方法 ============
 
@@ -408,8 +400,7 @@ const formatDate = (date: string) => {
 
 const getExamTips = () => {
   if (selectedItems.value.length === 0) return ['请按医嘱准备']
-  // 根据选中的项目类型返回注意事项
-  const types = selectedItems.value.map(i => i.type)
+  const types = selectedItems.value.map(i => typeMapping[i.type] || 'other')
   const allTips: string[] = []
   types.forEach(t => {
     const tips = examTipsMap[t] || ['请按医嘱准备']
@@ -438,7 +429,16 @@ const submitBooking = async () => {
   submitting.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 组装预约时间（ISO 格式）
+    const bookedTime = `${selectedDate.value}T${selectedTime.value.split('-')[0]}:00`
+
+    // 批量预约每个选中的项目
+    for (const item of selectedItems.value) {
+      await bookCheckRequest({
+        requestId: item.id,
+        bookedTime: bookedTime
+      })
+    }
 
     bookingResult.value = {
       bookingNo: `JC${dayjs().format('YYYYMMDD')}${String(Date.now()).slice(-4)}`
@@ -459,19 +459,87 @@ const goToRecords = () => router.push('/patient/appointments')
 
 // ============ 生命周期 ============
 
-onMounted(() => {
-  if (patientList.length > 0) {
-    selectedPatient.value = patientList.find(p => p.isDefault) || patientList[0]
-  }
-  if (availableDates.value.length > 0) {
-    selectedDate.value = availableDates.value[0].value
-  }
-  const firstAvailable = timeSlots.find(s => !s.disabled)
-  if (firstAvailable) {
-    selectedTime.value = firstAvailable.value
+onMounted(async () => {
+  try {
+    // 1. 获取当前患者信息
+    const patientRes = await getCurrentPatient()
+    const patient = patientRes.data || patientRes
+    if (patient) {
+      selectedPatient.value = patient
+    }
+
+    // 2. 获取就诊人列表
+    const listRes = await list()
+    const patients = listRes.data || listRes
+    if (patients && patients.length > 0) {
+      patientList.value = patients
+      // 如果当前患者没有选中，选默认或第一个
+      if (!selectedPatient.value) {
+        const defaultPatient = patients.find((p: any) => p.isDefault) || patients[0]
+        selectedPatient.value = defaultPatient
+      }
+    }
+
+    // 3. 获取待预约检查列表
+    const patientId = selectedPatient.value?.patientId || selectedPatient.value?.id
+    if (patientId) {
+      const res = await getPendingCheckRequests({ patientId })
+      const data = res.data || res
+      // 后端返回的数据结构需要映射为前端使用的格式
+      projects.value = (data || []).map((item: any) => ({
+        ...item,
+        type: item.type || 'CHECK',
+        typeName: typeNameMapping[item.type] || '检查科',
+        bodyPart: item.checkPosition,
+        price: item.techPrice,
+        name: item.techName,
+        tips: getCheckTips(item.techName)
+      }))
+    }
+
+    // 4. 默认选中第一个日期
+    if (availableDates.value.length > 0) {
+      selectedDate.value = availableDates.value[0].value
+    }
+
+    // 5. 默认选中第一个可用时间段
+    const firstAvailable = timeSlots.find(s => !s.disabled)
+    if (firstAvailable) {
+      selectedTime.value = firstAvailable.value
+    }
+
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    showToast('加载数据失败，请重试')
   }
 })
+
+// 根据项目名称生成提示
+const getCheckTips = (name: string) => {
+  if (!name) return '无需特殊准备'
+  if (name.includes('胃镜') || name.includes('肠镜') || name.includes('无痛胃')) {
+    return '需空腹8小时以上，需家属陪同'
+  }
+  if (name.includes('腹部') && name.includes('彩超')) {
+    return '需空腹8小时以上'
+  }
+  if (name.includes('CT') && !name.includes('增强')) {
+    return '无需特殊准备'
+  }
+  if (name.includes('动态心电图')) {
+    return '需佩戴24小时'
+  }
+  if (name.includes('运动平板')) {
+    return '需穿运动鞋'
+  }
+  if (name.includes('脑电图')) {
+    return '需洗头、保持清醒'
+  }
+  return '无需特殊准备'
+}
 </script>
+
+
 
 <style lang="scss" scoped>
 .exam-booking-page {

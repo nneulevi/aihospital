@@ -6,72 +6,87 @@
     <!-- 搜索 -->
     <van-search
         v-model="keyword"
-        placeholder="搜索医生姓名或科室"
+        placeholder="搜索科室或医生姓名"
         shape="round"
         background="transparent"
-        @search="onSearch"
     />
 
-    <!-- 科室筛选 -->
-    <div class="dept-filter">
-      <span
-          v-for="dept in deptFilters"
-          :key="dept.key"
-          class="filter-tag"
-          :class="{ active: activeDept === dept.key }"
-          @click="activeDept = dept.key"
-      >
-        {{ dept.label }}
-      </span>
-    </div>
-
-    <!-- 日期选择 -->
-    <div class="date-selector">
+    <!-- 科室列表 -->
+    <div v-if="!selectedDeptId" class="dept-list">
       <div
-          v-for="date in dateList"
-          :key="date.value"
-          class="date-item"
-          :class="{ active: selectedDate === date.value }"
-          @click="selectedDate = date.value"
+          v-for="dept in filteredDepts"
+          :key="dept.id"
+          class="dept-item"
+          @click="selectDept(dept)"
       >
-        <div class="date-week">{{ date.week }}</div>
-        <div class="date-day">{{ date.day }}</div>
+        <div class="dept-icon">{{ dept.icon || '🏥' }}</div>
+        <div class="dept-info">
+          <div class="dept-name">{{ dept.name }}</div>
+          <div class="dept-desc">{{ dept.description || '点击查看医生排班' }}</div>
+        </div>
+        <van-icon name="arrow" />
+      </div>
+      <div v-if="loadingDepts" class="loading-state">
+        <van-loading size="32px" /><p>加载科室中...</p>
+      </div>
+      <div v-if="!loadingDepts && departments.length === 0" class="empty-state">
+        <van-icon name="medal-o" size="48" />
+        <p>暂无科室数据</p>
       </div>
     </div>
 
-    <!-- 医生列表 -->
-    <div class="doctor-list">
-      <div
-          v-for="doc in filteredDoctors"
-          :key="doc.id"
-          class="doctor-card"
-          @click="viewDoctor(doc)"
-      >
-        <div class="doctor-avatar">
-          <van-icon name="doctor-o" size="36" color="#4CAF50" />
+    <!-- 医生排班 -->
+    <div v-else class="schedule-content">
+      <div class="dept-breadcrumb">
+        <span class="breadcrumb-text">{{ selectedDeptName }}</span>
+        <span class="breadcrumb-back" @click="selectedDeptId = 0; selectedDeptName = ''">重新选择</span>
+      </div>
+
+      <!-- 日期选择 -->
+      <div class="date-selector">
+        <div
+            v-for="date in dateList"
+            :key="date.value"
+            class="date-item"
+            :class="{ active: selectedDate === date.value }"
+            @click="selectDate(date.value)"
+        >
+          <div class="date-week">{{ date.week }}</div>
+          <div class="date-day">{{ date.day }}</div>
         </div>
-        <div class="doctor-info">
-          <div class="doctor-name">{{ doc.name }}</div>
-          <div class="doctor-title">{{ doc.title }}</div>
-          <div class="doctor-dept">{{ doc.dept }}</div>
-          <div class="doctor-schedule">
-            <span v-for="slot in doc.slots" :key="slot" class="slot-tag">
-              {{ slot }}
-            </span>
+      </div>
+
+      <!-- 医生列表 -->
+      <div class="doctor-list">
+        <div
+            v-for="doc in filteredDoctors"
+            :key="doc.doctorId"
+            class="doctor-card"
+        >
+          <div class="doctor-avatar">
+            <van-icon name="doctor-o" size="36" color="#4CAF50" />
+          </div>
+          <div class="doctor-info">
+            <div class="doctor-name">{{ doc.doctorName }}</div>
+            <div class="doctor-title">{{ doc.titleLevel }}</div>
+            <div class="doctor-dept">{{ doc.deptName }}</div>
+            <div class="doctor-schedule">
+              <span class="slot-tag">{{ doc.noon === 'MORNING' ? '上午' : '下午' }}</span>
+              <span class="quota-tag">余号 {{ doc.remainingQuota || 0 }}</span>
+            </div>
+          </div>
+          <div class="doctor-right">
+            <div class="doctor-fee">¥{{ doc.registFee || 50 }}</div>
           </div>
         </div>
-        <div class="doctor-right">
-          <div class="doctor-fee">¥{{ doc.fee }}</div>
-          <van-button size="small" type="primary" round @click.stop="goToRegister(doc)">
-            挂号
-          </van-button>
+        <div v-if="loadingDoctors" class="loading-state">
+          <van-loading size="32px" /><p>加载中...</p>
         </div>
-      </div>
-
-      <div v-if="filteredDoctors.length === 0" class="empty-state">
-        <van-icon name="doctor-o" size="64" color="#C4C4D6" />
-        <p>暂无出诊医生</p>
-        <span class="empty-desc">请选择其他日期或科室查询</span>
+        <div v-else-if="filteredDoctors.length === 0" class="empty-state">
+          <van-icon name="doctor-o" size="64" color="#C4C4D6" />
+          <p>暂无出诊医生</p>
+          <span class="empty-desc">请选择其他日期或调整搜索条件</span>
+        </div>
       </div>
     </div>
   </div>
@@ -80,35 +95,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast } from 'vant'
+import { showToast, showLoadingToast, closeToast } from 'vant'
 import dayjs from 'dayjs'
+import { listDepartments, getDoctors } from '@/api'
+import type { DeptListVO, DoctorListVO } from '@/api/model'
 
 const router = useRouter()
 
 const keyword = ref('')
-const activeDept = ref('all')
+const selectedDeptId = ref(0)
+const selectedDeptName = ref('')
 const selectedDate = ref('')
+const departments = ref<DeptListVO[]>([])
+const doctorList = ref<DoctorListVO[]>([])
+const loadingDepts = ref(false)
+const loadingDoctors = ref(false)
 
-const deptFilters = [
-  { key: 'all', label: '全部' },
-  { key: '神经内科', label: '神经内科' },
-  { key: '心血管内科', label: '心血管内科' },
-  { key: '呼吸内科', label: '呼吸内科' },
-  { key: '消化内科', label: '消化内科' },
-  { key: '骨科', label: '骨科' }
-]
-
-const doctors = ref([
-  { id: 1, name: '张敏', title: '主任医师', dept: '呼吸内科', fee: 100, slots: ['上午', '下午'] },
-  { id: 2, name: '李为民', title: '副主任医师', dept: '心血管内科', fee: 80, slots: ['上午'] },
-  { id: 3, name: '王建国', title: '主任医师', dept: '神经内科', fee: 100, slots: ['下午'] },
-  { id: 4, name: '孙伟', title: '副主任医师', dept: '心血管内科', fee: 80, slots: ['上午', '下午'] },
-  { id: 5, name: '陈明', title: '主治医师', dept: '消化内科', fee: 50, slots: ['上午'] },
-  { id: 6, name: '吴刚', title: '主任医师', dept: '骨科', fee: 100, slots: ['上午', '下午'] },
-  { id: 7, name: '郑红', title: '主治医师', dept: '呼吸内科', fee: 50, slots: ['下午'] },
-  { id: 8, name: '刘芳', title: '副主任医师', dept: '神经内科', fee: 80, slots: ['上午'] }
-])
-
+// 日期列表（未来7天）
 const dateList = computed(() => {
   const dates = []
   for (let i = 0; i < 7; i++) {
@@ -122,42 +125,84 @@ const dateList = computed(() => {
   return dates
 })
 
-const filteredDoctors = computed(() => {
-  let result = doctors.value
-  if (activeDept.value !== 'all') {
-    result = result.filter(d => d.dept === activeDept.value)
-  }
-  if (keyword.value.trim()) {
-    result = result.filter(d =>
-        d.name.includes(keyword.value.trim()) ||
-        d.dept.includes(keyword.value.trim())
-    )
-  }
-  return result
+// 筛选科室（按科室名称）
+const filteredDepts = computed(() => {
+  if (!keyword.value) return departments.value
+  return departments.value.filter(d =>
+      (d.name || '').includes(keyword.value)
+  )
 })
 
-const onSearch = () => {
-  // 由 computed 处理
+// 筛选医生（按医生名称前端模糊查询）
+const filteredDoctors = computed(() => {
+  if (!keyword.value) return doctorList.value
+  const kw = keyword.value.trim()
+  return doctorList.value.filter(d =>
+      (d.doctorName || '').includes(kw)
+  )
+})
+
+// 加载科室
+const loadDepartments = async () => {
+  loadingDepts.value = true
+  try {
+    const res = await listDepartments() as DeptListVO[]
+    departments.value = res.map(d => ({
+      ...d,
+      id: d.id || 0,
+      icon: d.icon || '🏥',
+      description: d.description || '点击查看医生排班'
+    }))
+  } catch (error) {
+    showToast('加载科室失败')
+  } finally {
+    loadingDepts.value = false
+  }
 }
 
-const viewDoctor = (doc: any) => {
-  showToast(`${doc.name} ${doc.title}`)
+// 选择科室
+const selectDept = (dept: DeptListVO) => {
+  selectedDeptId.value = dept.id || 0
+  selectedDeptName.value = dept.name || ''
+  keyword.value = '' // 清空搜索，切换到医生列表
+  selectedDate.value = dateList.value[0]?.value || dayjs().format('YYYY-MM-DD')
+  loadDoctors()
 }
 
-const goToRegister = (doc: any) => {
-  router.push({
-    path: '/patient/appointment',
-    query: {
-      doctorId: String(doc.id),
-      deptName: doc.dept
+// 选择日期
+const selectDate = (date: string) => {
+  selectedDate.value = date
+  loadDoctors()
+}
+
+// 加载医生排班
+const loadDoctors = async () => {
+  if (!selectedDeptId.value || !selectedDate.value) return
+
+  loadingDoctors.value = true
+  showLoadingToast({ message: '加载中...', forbidClick: true })
+  doctorList.value = []
+
+  try {
+    const params = {
+      deptId: selectedDeptId.value,
+      visitDate: selectedDate.value,
+      pageNum: 1,
+      pageSize: 100
     }
-  })
+    const res = await getDoctors(params) as any
+    doctorList.value = res?.records || res || []
+  } catch (error) {
+    showToast('加载医生排班失败')
+    doctorList.value = []
+  } finally {
+    loadingDoctors.value = false
+    closeToast()
+  }
 }
 
 onMounted(() => {
-  if (dateList.value.length > 0) {
-    selectedDate.value = dateList.value[0].value
-  }
+  loadDepartments()
 })
 </script>
 
@@ -168,26 +213,46 @@ onMounted(() => {
   padding-bottom: 20px;
 }
 
-.dept-filter {
-  display: flex;
-  gap: 8px;
-  padding: 0 16px 12px;
-  overflow-x: auto;
-  &::-webkit-scrollbar { height: 0; }
+.dept-list {
+  padding: 0 16px;
 }
 
-.filter-tag {
-  flex-shrink: 0;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  color: #6B6B7E;
+.dept-item {
   background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   cursor: pointer;
-  &.active {
-    background: #4CAF50;
-    color: white;
-  }
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  &:active { transform: scale(0.98); }
+}
+
+.dept-icon {
+  font-size: 32px;
+  width: 48px;
+  text-align: center;
+}
+
+.dept-info {
+  flex: 1;
+  .dept-name { font-size: 16px; font-weight: 500; color: #1A1A2E; }
+  .dept-desc { font-size: 13px; color: #6B6B7E; margin-top: 2px; }
+}
+
+.dept-breadcrumb {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 0 16px 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  .breadcrumb-text { font-size: 15px; font-weight: 500; color: #1A1A2E; }
+  .breadcrumb-back { font-size: 13px; color: #4CAF50; cursor: pointer; }
 }
 
 .date-selector {
@@ -226,8 +291,6 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  cursor: pointer;
-  &:active { transform: scale(0.98); }
 }
 
 .doctor-avatar {
@@ -257,6 +320,13 @@ onMounted(() => {
       padding: 2px 10px;
       border-radius: 10px;
     }
+    .quota-tag {
+      font-size: 12px;
+      color: #FF9800;
+      background: #FFF3E0;
+      padding: 2px 10px;
+      border-radius: 10px;
+    }
   }
 }
 
@@ -264,24 +334,24 @@ onMounted(() => {
   text-align: right;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   align-items: flex-end;
   .doctor-fee {
     font-size: 18px;
     font-weight: 700;
     color: #E76F51;
   }
-  .van-button--primary {
-    background: #4CAF50;
-    border-color: #4CAF50;
-  }
 }
 
-.empty-state {
+.loading-state, .empty-state {
   text-align: center;
   padding: 40px 0;
-  color: #C4C4D6;
-  p { font-size: 16px; color: #6B6B7E; margin-top: 12px; }
-  .empty-desc { font-size: 13px; color: #6B6B7E; }
+  color: #6B6B7E;
+  p { margin-top: 12px; }
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: #6B6B7E;
 }
 </style>

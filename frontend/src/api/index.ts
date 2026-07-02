@@ -47,6 +47,16 @@ export const getReportDetail = wrap(api.getReportDetail)
 export const markReportRead = wrap(api.markReportRead)
 export const getCurrentPatient = wrap(api.getCurrentPatient)
 
+// ========== 患者端 - 新增 4 个预约相关 API ==========
+// 查询待预约检验列表（医生开的、未预约的、状态为 CREATED）
+export const getPendingInspectionRequests = wrap(api.getPendingInspectionRequests)
+// 查询待预约检查列表（医生开的、未预约的、状态为 CREATED）
+export const getPendingCheckRequests = wrap(api.getPendingCheckRequests)
+// 患者预约检验（更新 booked_time + 状态改为 BOOKED）
+export const bookInspectionRequest = wrap(api.bookInspectionRequest)
+// 患者预约检查（更新 booked_time + 状态改为 BOOKED）
+export const bookCheckRequest = wrap(api.bookCheckRequest)
+
 // ========== 医生/管理员认证 ==========
 export const authSendCode = wrap(api.sendCode1)
 export const loginByCode = wrap(api.loginByCode)

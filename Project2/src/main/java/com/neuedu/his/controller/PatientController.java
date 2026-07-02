@@ -182,4 +182,36 @@ public class PatientController {
         Integer patientId = jwtUtil.getUserIdFromToken(token.replace("Bearer ", ""));
         return patientService.getCurrentPatient(patientId);
     }
+
+    /**
+     * 查询患者待预约的检验列表
+     */
+    @GetMapping("/inspection-requests")
+    public List<com.neuedu.his.model.vo.PendingInspectionRequestVO> getPendingInspectionRequests(@Valid InspectionRequestQueryDTO query) {
+        return patientService.getPendingInspectionRequests(query);
+    }
+
+    /**
+     * 查询患者待预约的检查列表
+     */
+    @GetMapping("/check-requests")
+    public List<com.neuedu.his.model.vo.PendingCheckRequestVO> getPendingCheckRequests(@Valid CheckRequestQueryDTO query) {
+        return patientService.getPendingCheckRequests(query);
+    }
+
+    /**
+     * 患者预约检验
+     */
+    @PutMapping("/inspection-request/book")
+    public void bookInspectionRequest(@RequestBody @Valid BookRequestDTO request) {
+        patientService.bookInspectionRequest(request);
+    }
+
+    /**
+     * 患者预约检查
+     */
+    @PutMapping("/check-request/book")
+    public void bookCheckRequest(@RequestBody @Valid BookRequestDTO request) {
+        patientService.bookCheckRequest(request);
+    }
 }

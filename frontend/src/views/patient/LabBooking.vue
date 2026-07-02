@@ -50,10 +50,10 @@
             />
           </div>
           <div class="project-info">
-            <div class="project-name">{{ item.name }}</div>
+            <div class="project-name">{{ item.techName || item.name }}</div>
             <div class="project-desc">
-              <span>{{ item.categoryName }}</span>
-              <span>{{ item.specimenType || '--' }}</span>
+              <span>{{ item.categoryName || '检验科' }}</span>
+              <span>{{ item.inspectionPosition || item.specimenType || '--' }}</span>
             </div>
             <div class="project-tips" v-if="item.tips">
               <van-icon name="info-o" />
@@ -61,13 +61,14 @@
             </div>
           </div>
           <div class="project-price">
-            ¥{{ item.price.toFixed(2) }}
+            ¥{{ (item.techPrice || item.price || 0).toFixed(2) }}
           </div>
         </div>
 
         <div v-if="filteredProjects.length === 0" class="empty-state">
           <van-icon name="search" size="48" color="#C4C4D6" />
-          <p>未找到匹配的检验项目</p>
+          <p>{{ keyword ? '未找到匹配的检验项目' : '暂无待预约的检验项目' }}</p>
+          <p v-if="!keyword" style="font-size: 12px; color: #999; margin-top: 4px;">请先由医生开具检验申请</p>
         </div>
       </div>
 
@@ -142,8 +143,8 @@
         <div class="card-title">已选项目 ({{ selectedItems.length }})</div>
         <div class="selected-items">
           <div v-for="item in selectedItems" :key="item.id" class="selected-item">
-            <span class="item-name">{{ item.name }}</span>
-            <span class="item-price">¥{{ item.price.toFixed(2) }}</span>
+            <span class="item-name">{{ item.techName || item.name }}</span>
+            <span class="item-price">¥{{ (item.techPrice || item.price || 0).toFixed(2) }}</span>
           </div>
           <div class="total-price">
             <span>合计</span>
@@ -178,7 +179,7 @@
         <div class="booking-info">
           <div class="info-row">
             <span class="label">预约项目</span>
-            <span class="value">{{ selectedItems.map(i => i.name).join('、') }}</span>
+            <span class="value">{{ selectedItems.map(i => i.techName || i.name).join('、') }}</span>
           </div>
           <div class="info-row">
             <span class="label">预约日期</span>
@@ -245,6 +246,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import dayjs from 'dayjs'
+import {
+  getCurrentPatient,
+  list,
+  getPendingInspectionRequests,
+  bookInspectionRequest
+} from '@/api'
 
 const router = useRouter()
 
@@ -252,6 +259,7 @@ const router = useRouter()
 const step = ref(1)
 const keyword = ref('')
 const activeCategory = ref('all')
+const projects = ref<any[]>([])
 const selectedItems = ref<any[]>([])
 const selectedPatient = ref<any>(null)
 const selectedDate = ref('')
@@ -259,10 +267,9 @@ const selectedTime = ref('')
 const submitting = ref(false)
 const showPatientSheet = ref(false)
 const bookingResult = ref<any>(null)
+const patientList = ref<any[]>([])
 
-// ============ 模拟数据 ============
-
-// 分类
+// ============ 分类（用于前端筛选） ============
 const categories = [
   { key: 'all', label: '全部' },
   { key: 'blood', label: '血液检验' },
@@ -272,25 +279,63 @@ const categories = [
   { key: 'immunology', label: '免疫检验' },
 ]
 
-// 检验项目
-const projects = [
-  { id: 1, name: '血常规', category: 'blood', categoryName: '血液检验', specimenType: '全血', price: 45.00, tips: '无需空腹' },
-  { id: 2, name: '肝功能全套', category: 'biochemistry', categoryName: '生化检验', specimenType: '血清', price: 120.00, tips: '需空腹8小时以上' },
-  { id: 3, name: '肾功能全套', category: 'biochemistry', categoryName: '生化检验', specimenType: '血清', price: 80.00, tips: '需空腹8小时以上' },
-  { id: 4, name: '血脂全套', category: 'biochemistry', categoryName: '生化检验', specimenType: '血清', price: 95.00, tips: '需空腹12小时以上' },
-  { id: 5, name: '尿常规', category: 'urine', categoryName: '尿液检验', specimenType: '尿液', price: 30.00, tips: '留取中段尿' },
-  { id: 6, name: '尿培养+药敏', category: 'urine', categoryName: '尿液检验', specimenType: '尿液', price: 150.00, tips: '需留取清洁中段尿' },
-  { id: 7, name: '粪便常规', category: 'stool', categoryName: '粪便检验', specimenType: '粪便', price: 25.00, tips: '留取新鲜标本' },
-  { id: 8, name: '粪便潜血', category: 'stool', categoryName: '粪便检验', specimenType: '粪便', price: 35.00, tips: '留取新鲜标本' },
-  { id: 9, name: '乙肝两对半', category: 'immunology', categoryName: '免疫检验', specimenType: '血清', price: 85.00, tips: '无需空腹' },
-  { id: 10, name: '甲状腺功能全套', category: 'immunology', categoryName: '免疫检验', specimenType: '血清', price: 200.00, tips: '需空腹' },
-]
+// 后端类型映射到前端分类
+const categoryMapping: Record<string, string> = {
+  'BLOOD': 'blood',
+  'URINE': 'urine',
+  'STOOL': 'stool',
+  'BIOCHEMISTRY': 'biochemistry',
+  'IMMUNOLOGY': 'immunology',
+}
 
-// 就诊人
-const patientList = [
-  { patientId: 1, realName: '张明', gender: 'MALE', age: 35, caseNumber: 'HN202600001', isDefault: true },
-  { patientId: 2, realName: '张秀兰', gender: 'FEMALE', age: 68, caseNumber: 'HN202600002', isDefault: false },
-]
+// 类型名称映射
+const categoryNameMapping: Record<string, string> = {
+  'BLOOD': '血液检验',
+  'URINE': '尿液检验',
+  'STOOL': '粪便检验',
+  'BIOCHEMISTRY': '生化检验',
+  'IMMUNOLOGY': '免疫检验',
+}
+
+// ============ 计算属性 ============
+
+const filteredProjects = computed(() => {
+  let result = projects.value
+  if (activeCategory.value !== 'all') {
+    result = result.filter(p => {
+      const cat = categoryMapping[p.type] || 'other'
+      return cat === activeCategory.value
+    })
+  }
+  if (keyword.value.trim()) {
+    const kw = keyword.value.trim().toLowerCase()
+    result = result.filter(p => (p.techName || p.name || '').toLowerCase().includes(kw))
+  }
+  return result
+})
+
+const totalPrice = computed(() => {
+  return selectedItems.value.reduce((sum, item) => sum + (item.techPrice || item.price || 0), 0)
+})
+
+const selectAll = computed({
+  get: () => {
+    return filteredProjects.value.length > 0 &&
+        filteredProjects.value.every(p => selectedItems.value.some(i => i.id === p.id))
+  },
+  set: (val) => {
+    if (val) {
+      filteredProjects.value.forEach(p => {
+        if (!selectedItems.value.some(i => i.id === p.id)) {
+          selectedItems.value.push(p)
+        }
+      })
+    } else {
+      const ids = filteredProjects.value.map(p => p.id)
+      selectedItems.value = selectedItems.value.filter(i => !ids.includes(i.id))
+    }
+  }
+})
 
 // 可选日期
 const availableDates = computed(() => {
@@ -318,42 +363,6 @@ const timeSlots = [
   { value: '16:00-17:00', label: '16:00-17:00', disabled: false },
 ]
 
-// ============ 计算属性 ============
-
-const filteredProjects = computed(() => {
-  let result = projects
-  if (activeCategory.value !== 'all') {
-    result = result.filter(p => p.category === activeCategory.value)
-  }
-  if (keyword.value.trim()) {
-    result = result.filter(p => p.name.includes(keyword.value.trim()))
-  }
-  return result
-})
-
-const totalPrice = computed(() => {
-  return selectedItems.value.reduce((sum, item) => sum + item.price, 0)
-})
-
-const selectAll = computed({
-  get: () => {
-    return filteredProjects.value.length > 0 &&
-        filteredProjects.value.every(p => selectedItems.value.some(i => i.id === p.id))
-  },
-  set: (val) => {
-    if (val) {
-      filteredProjects.value.forEach(p => {
-        if (!selectedItems.value.some(i => i.id === p.id)) {
-          selectedItems.value.push(p)
-        }
-      })
-    } else {
-      const ids = filteredProjects.value.map(p => p.id)
-      selectedItems.value = selectedItems.value.filter(i => !ids.includes(i.id))
-    }
-  }
-})
-
 // ============ 方法 ============
 
 const toggleSelect = (item: any) => {
@@ -376,6 +385,8 @@ const onSearch = () => {
 const selectPatient = (patient: any) => {
   selectedPatient.value = patient
   showPatientSheet.value = false
+  // 切换就诊人后重新加载数据
+  loadPendingRequests(patient.patientId || patient.id)
 }
 
 const selectTimeSlot = (slot: any) => {
@@ -393,6 +404,47 @@ const getTimeLabel = (value: string) => {
 
 const formatDate = (date: string) => {
   return dayjs(date).format('YYYY年MM月DD日')
+}
+
+// 加载待预约检验列表
+const loadPendingRequests = async (patientId: number) => {
+  try {
+    const res = await getPendingInspectionRequests({ patientId })
+    const data = res.data || res
+    projects.value = (data || []).map((item: any) => ({
+      ...item,
+      type: item.type || 'INSPECTION',
+      categoryName: categoryNameMapping[item.type] || '检验科',
+      specimenType: item.inspectionPosition,
+      price: item.techPrice,
+      name: item.techName,
+      tips: getInspectionTips(item.techName)
+    }))
+  } catch (error) {
+    console.error('加载检验列表失败:', error)
+    projects.value = []
+  }
+}
+
+// 根据项目名称生成提示
+const getInspectionTips = (name: string) => {
+  if (!name) return '无需特殊准备'
+  if (name.includes('肝功能') || name.includes('肾功能') || name.includes('血脂')) {
+    return '需空腹8小时以上'
+  }
+  if (name.includes('尿') && !name.includes('培养')) {
+    return '留取中段尿'
+  }
+  if (name.includes('尿培养')) {
+    return '需留取清洁中段尿'
+  }
+  if (name.includes('粪便')) {
+    return '留取新鲜标本'
+  }
+  if (name.includes('糖耐量')) {
+    return '需空腹10-12小时'
+  }
+  return '无需特殊准备'
 }
 
 // 提交预约
@@ -413,7 +465,16 @@ const submitBooking = async () => {
   submitting.value = true
 
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // 组装预约时间（ISO 格式）
+    const bookedTime = `${selectedDate.value}T${selectedTime.value.split('-')[0]}:00`
+
+    // 批量预约每个选中的项目
+    for (const item of selectedItems.value) {
+      await bookInspectionRequest({
+        requestId: item.id,
+        bookedTime: bookedTime
+      })
+    }
 
     bookingResult.value = {
       bookingNo: `JY${dayjs().format('YYYYMMDD')}${String(Date.now()).slice(-4)}`
@@ -434,22 +495,50 @@ const goToRecords = () => router.push('/patient/appointments')
 
 // ============ 生命周期 ============
 
-onMounted(() => {
-  // 默认选中第一个就诊人
-  if (patientList.length > 0) {
-    selectedPatient.value = patientList.find(p => p.isDefault) || patientList[0]
-  }
-  // 默认选中今天
-  if (availableDates.value.length > 0) {
-    selectedDate.value = availableDates.value[0].value
-  }
-  // 默认选中第一个可用时间段
-  const firstAvailable = timeSlots.find(s => !s.disabled)
-  if (firstAvailable) {
-    selectedTime.value = firstAvailable.value
+onMounted(async () => {
+  try {
+    // 1. 获取当前患者信息
+    const patientRes = await getCurrentPatient()
+    const patient = patientRes.data || patientRes
+    if (patient) {
+      selectedPatient.value = patient
+    }
+
+    // 2. 获取就诊人列表
+    const listRes = await list()
+    const patients = listRes.data || listRes
+    if (patients && patients.length > 0) {
+      patientList.value = patients
+      if (!selectedPatient.value) {
+        const defaultPatient = patients.find((p: any) => p.isDefault) || patients[0]
+        selectedPatient.value = defaultPatient
+      }
+    }
+
+    // 3. 获取待预约检验列表
+    const patientId = selectedPatient.value?.patientId || selectedPatient.value?.id
+    if (patientId) {
+      await loadPendingRequests(patientId)
+    }
+
+    // 4. 默认选中第一个日期
+    if (availableDates.value.length > 0) {
+      selectedDate.value = availableDates.value[0].value
+    }
+
+    // 5. 默认选中第一个可用时间段
+    const firstAvailable = timeSlots.find(s => !s.disabled)
+    if (firstAvailable) {
+      selectedTime.value = firstAvailable.value
+    }
+
+  } catch (error) {
+    console.error('加载数据失败:', error)
+    showToast('加载数据失败，请重试')
   }
 })
 </script>
+
 
 <style lang="scss" scoped>
 .lab-booking-page {

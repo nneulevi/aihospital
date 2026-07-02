@@ -599,4 +599,38 @@ public class PatientServiceImpl implements PatientService {
         vo.setQueueCount(count != null ? count : 0);
         return vo;
     }
+
+    @Override
+    public List<com.neuedu.his.model.vo.PendingInspectionRequestVO> getPendingInspectionRequests(InspectionRequestQueryDTO query) {
+        return inspectionRequestMapper.selectPendingInspectionRequests(query.getPatientId());
+    }
+
+    @Override
+    public List<com.neuedu.his.model.vo.PendingCheckRequestVO> getPendingCheckRequests(CheckRequestQueryDTO query) {
+        return checkRequestMapper.selectPendingCheckRequests(query.getPatientId());
+    }
+
+    @Override
+    @Transactional
+    public void bookInspectionRequest(BookRequestDTO request) {
+        int affected = inspectionRequestMapper.bookInspectionRequest(
+                request.getRequestId(),
+                request.getBookedTime()
+        );
+        if (affected == 0) {
+            throw new BusinessException("预约失败：记录不存在或已被预约");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void bookCheckRequest(BookRequestDTO request) {
+        int affected = checkRequestMapper.bookCheckRequest(
+                request.getRequestId(),
+                request.getBookedTime()
+        );
+        if (affected == 0) {
+            throw new BusinessException("预约失败：记录不存在或已被预约");
+        }
+    }
 }
