@@ -148,15 +148,13 @@
               left-icon="user-o"
               :rules="[{ required: true, message: '请输入姓名' }]"
           />
-          <!-- 性别 - 使用 Picker -->
+          <!-- 性别 - 改为普通输入框 -->
           <van-field
               v-model="formData.gender"
               label="性别"
-              placeholder="请选择性别"
-              readonly
-              is-link
+              placeholder="请输入性别（男/女）"
+              clearable
               left-icon="user-o"
-              @click="showGenderPicker = true"
           />
           <!-- 身份证号 -->
           <van-field
@@ -167,7 +165,7 @@
               left-icon="idcard"
               :rules="[{ required: true, message: '请输入身份证号' }]"
           />
-          <!-- 出生日期 - 使用原生 input -->
+          <!-- 出生日期 -->
           <van-field
               label="出生日期"
               left-icon="calendar-o"
@@ -242,15 +240,6 @@
       </div>
     </van-action-sheet>
 
-    <!-- 性别选择器 -->
-    <van-picker
-        v-model:show="showGenderPicker"
-        :columns="genderColumns"
-        title="请选择性别"
-        @confirm="onGenderConfirm"
-        @cancel="showGenderPicker = false"
-    />
-
     <!-- 挂号成功弹窗 -->
     <van-dialog
         v-model:show="showSuccessDialog"
@@ -320,7 +309,6 @@ const loadingDepts = ref(false)
 const showPatientSelector = ref(false)
 const showSuccessDialog = ref(false)
 const newRegisterId = ref<number | null>(null)
-const showGenderPicker = ref(false)
 
 const departments = ref<DeptListVO[]>([])
 const patientList = ref<PatientListVO[]>([])
@@ -336,12 +324,6 @@ const formData = ref({
   phone: '',
   homeAddress: ''
 })
-
-// ============ Picker 列配置 ============
-const genderColumns = [
-  { text: '男', value: '男' },
-  { text: '女', value: '女' }
-]
 
 // ============ 计算属性 ============
 const dateList = computed(() => {
@@ -369,14 +351,17 @@ const filteredDepts = computed(() => {
 // ============ 监听就诊人变化，更新表单 ============
 watch(selectedPatient, (newPatient) => {
   if (newPatient) {
+    // 从 userStore 获取当前用户的补充信息
+    const userInfo = userStore.userInfo
     formData.value = {
       caseNumber: newPatient.caseNumber || '',
       realName: newPatient.realName || '',
-      gender: newPatient.gender === 'MALE' ? '男' : (newPatient.gender || ''),
-      cardNumber: newPatient.cardNumber || '',
-      birthdate: newPatient.birthdate || '',
-      phone: newPatient.phone || '',
-      homeAddress: newPatient.homeAddress || ''
+      gender: newPatient.gender || '',
+      // 优先取就诊人数据，取不到则从 userStore 补充
+      cardNumber: newPatient.cardNumber || userInfo?.cardNumber || '',
+      birthdate: newPatient.birthdate || userInfo?.birthdate || '',
+      phone: newPatient.phone || userInfo?.phone || '',
+      homeAddress: newPatient.homeAddress || userInfo?.homeAddress || ''
     }
     console.log('📝 [Appointment] 表单数据已更新:', formData.value)
   }
@@ -415,19 +400,25 @@ const loadDepartments = async () => {
 const loadPatients = async () => {
   try {
     const res = await list() as PatientListVO[]
-    console.log('📥 [Appointment] 就诊人数据:', res)
+    console.log('📥 [Appointment] 就诊人原始数据:', JSON.stringify(res, null, 2))
+
+    // ✅ 直接使用后端返回的字段，同时保留兼容性
     patientList.value = res.map(p => ({
       patientId: (p as any).id || (p as any).patientId,
-      realName: p.realName,
-      gender: p.gender,
-      cardNumber: p.cardNumber,
-      phone: p.phone,
-      age: p.age,
-      caseNumber: p.caseNumber,
+      realName: p.realName || '',
+      gender: p.gender || '',
+      cardNumber: (p as any).cardNumber || '',
+      phone: p.phone || '',
+      age: p.age || 0,
+      caseNumber: (p as any).caseNumber || '',
       birthdate: (p as any).birthdate || '',
       homeAddress: (p as any).homeAddress || '',
-      isDefault: (p as any).isDefault
+      isDefault: (p as any).isDefault || false,
+      relation: (p as any).relation || ''
     }))
+
+    console.log('📥 [Appointment] 处理后就诊人列表:', patientList.value)
+
     if (!selectedPatient.value && patientList.value.length > 0) {
       selectedPatient.value = patientList.value.find(p => p.isDefault) || patientList.value[0]
     }
@@ -529,14 +520,6 @@ const goToPatientManager = () => {
   router.push('/patient/patient-manager')
 }
 
-// ============ 性别选择 ============
-const onGenderConfirm = ({ selectedValues }: { selectedValues: string[] }) => {
-  if (selectedValues && selectedValues.length > 0) {
-    formData.value.gender = selectedValues[0]
-  }
-  showGenderPicker.value = false
-}
-
 // ============ 格式化日期 ============
 const formatDate = (date: string) => dayjs(date).format('YYYY年MM月DD日')
 
@@ -548,7 +531,7 @@ const submitRegister = async () => {
     return
   }
   if (!formData.value.gender) {
-    showToast('请选择性别')
+    showToast('请输入性别')
     return
   }
   if (!formData.value.cardNumber) {
@@ -605,7 +588,7 @@ const submitRegister = async () => {
   }
 }
 
-// 🔥 修改：跳转到挂号记录列表，传递 patientId
+// 跳转到挂号记录列表
 const goToRecords = () => {
   showSuccessDialog.value = false
   const patientId = selectedPatient.value?.patientId

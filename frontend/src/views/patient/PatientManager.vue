@@ -21,10 +21,9 @@
             <span class="patient-relation" v-if="patient.relation">
               {{ patient.relation }}
             </span>
-            <van-tag v-if="patient.isDefault" type="success" size="mini">默认</van-tag>
+            <van-tag v-if="patient.isDefault" type="success" >默认</van-tag>
           </div>
           <div class="patient-meta">
-            <!-- ✅ 数据库存的是中文 "男"/"女"，直接显示 -->
             <span>{{ patient.gender || '未知' }}</span>
             <span>{{ patient.age || '--' }}岁</span>
             <span>病历号：{{ patient.caseNumber || '--' }}</span>
@@ -92,11 +91,10 @@
               v-model="formData.gender"
               name="gender"
               label="性别"
-              placeholder="请选择性别"
-              readonly
-              is-link
-              :rules="[{ required: true, message: '请选择性别' }]"
-              @click="showGenderPicker = true"
+              placeholder="请输入性别（男/女）"
+              clearable
+              left-icon="user-o"
+              :rules="[{ required: true, message: '请填写性别' }]"
           />
           <van-field
               v-model="formData.cardNumber"
@@ -158,9 +156,7 @@
               name="relation"
               label="关系"
               placeholder="如：本人、父亲、母亲、子女"
-              readonly
-              is-link
-              @click="showRelationPicker = true"
+              clearable
           />
           <van-field
               v-model="formData.homeAddress"
@@ -176,28 +172,6 @@
             </van-button>
           </div>
         </van-form>
-      </div>
-    </van-action-sheet>
-
-    <!-- ===== 性别选择器 ===== -->
-    <van-action-sheet v-model:show="showGenderPicker" title="选择性别">
-      <div class="picker-options">
-        <div class="picker-option" @click="selectGender('男')">男</div>
-        <div class="picker-option" @click="selectGender('女')">女</div>
-      </div>
-    </van-action-sheet>
-
-    <!-- ===== 关系选择器 ===== -->
-    <van-action-sheet v-model:show="showRelationPicker" title="选择关系">
-      <div class="picker-options">
-        <div
-            v-for="rel in relationOptions"
-            :key="rel"
-            class="picker-option"
-            @click="selectRelation(rel)"
-        >
-          {{ rel }}
-        </div>
       </div>
     </van-action-sheet>
 
@@ -234,8 +208,6 @@ const editingId = ref<number | null>(null)
 const countdown = ref(0)
 
 const showAddSheet = ref(false)
-const showGenderPicker = ref(false)
-const showRelationPicker = ref(false)
 const showDeleteDialog = ref(false)
 
 const deleteTarget = ref<PatientListVO | null>(null)
@@ -245,7 +217,7 @@ const formData = ref<PatientAuthRegisterRequestDTO & { relation?: string }>({
   cardNumber: '',
   phone: '',
   code: '',
-  gender: '男',  // ✅ 默认改为中文
+  gender: '',
   birthdate: '',
   homeAddress: '',
   relation: ''
@@ -310,6 +282,8 @@ const onSendCode = async () => {
 const loadPatients = async () => {
   try {
     const res = await list() as PatientListVO[]
+    console.log('📥 [PatientManager] 就诊人原始数据:', JSON.stringify(res, null, 2))
+    // ✅ 直接赋值，后端字段已完整
     patients.value = res || []
   } catch {
     showToast('加载就诊人列表失败')
@@ -328,7 +302,10 @@ const setDefault = async (patient: PatientListVO) => {
       caseNumber: patient.caseNumber,
       gender: patient.gender,
       age: patient.age,
-      phone: patient.phone
+      phone: patient.phone,
+      cardNumber: patient.cardNumber,
+      birthdate: patient.birthdate,
+      homeAddress: patient.homeAddress
     })
     await loadPatients()
     showSuccessToast('已切换')
@@ -342,12 +319,13 @@ const setDefault = async (patient: PatientListVO) => {
 const editPatient = (patient: PatientListVO) => {
   isEditMode.value = true
   editingId.value = patient.id!
+  // ✅ 完整回填所有字段
   formData.value = {
     realName: patient.realName || '',
     cardNumber: patient.cardNumber || '',
     phone: patient.phone || '',
     code: '',
-    gender: patient.gender || '男',
+    gender: patient.gender || '',
     birthdate: patient.birthdate || '',
     homeAddress: patient.homeAddress || '',
     relation: patient.relation || ''
@@ -392,22 +370,12 @@ const openAddForm = () => {
     cardNumber: '',
     phone: '',
     code: '',
-    gender: '男',  // ✅ 默认男
+    gender: '',
     birthdate: '',
     homeAddress: '',
     relation: ''
   }
   showAddSheet.value = true
-}
-
-const selectGender = (gender: string) => {
-  formData.value.gender = gender
-  showGenderPicker.value = false
-}
-
-const selectRelation = (relation: string) => {
-  formData.value.relation = relation
-  showRelationPicker.value = false
 }
 
 const onCardNumberChange = () => {
@@ -418,7 +386,7 @@ const onCardNumberChange = () => {
       formData.value.birthdate = birthdate
     }
     const gender = extractGenderFromCard(card)
-    if (gender) {
+    if (gender && !formData.value.gender) {
       formData.value.gender = gender
     }
   }
@@ -428,6 +396,7 @@ const onCardNumberChange = () => {
 
 const submitPatient = async () => {
   if (!formData.value.realName) { showToast('请填写姓名'); return }
+  if (!formData.value.gender) { showToast('请填写性别'); return }
   if (!formData.value.cardNumber) { showToast('请填写身份证号'); return }
   if (!formData.value.phone) { showToast('请填写手机号'); return }
   if (!formData.value.code) { showToast('请填写验证码'); return }
@@ -455,7 +424,10 @@ const submitPatient = async () => {
         realName: formData.value.realName,
         caseNumber: res.caseNumber,
         gender: formData.value.gender,
-        phone: formData.value.phone
+        phone: formData.value.phone,
+        cardNumber: formData.value.cardNumber,
+        birthdate: formData.value.birthdate,
+        homeAddress: formData.value.homeAddress
       })
     }
 
@@ -478,7 +450,7 @@ const closeForm = () => {
     cardNumber: '',
     phone: '',
     code: '',
-    gender: '男',
+    gender: '',
     birthdate: '',
     homeAddress: '',
     relation: ''
@@ -598,30 +570,6 @@ onMounted(() => {
   .van-button--primary {
     background: #4CAF50;
     border-color: #4CAF50;
-  }
-}
-
-.picker-options {
-  padding: 8px 0 20px;
-}
-
-.picker-option {
-  padding: 14px 20px;
-  text-align: center;
-  font-size: 16px;
-  color: #1A1A2E;
-  border-bottom: 1px solid #F0F0F0;
-  cursor: pointer;
-  transition: background 0.15s;
-
-  &:hover {
-    background: #F5F7FA;
-  }
-  &:last-child {
-    border-bottom: none;
-  }
-  &:active {
-    background: #E8E8E8;
   }
 }
 

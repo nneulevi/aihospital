@@ -8,5 +8,10 @@ public class PatientLoginResponseVO {
     private Integer patientId;
     private String caseNumber;
     private String realName;
-    private Boolean isNewPatient;  // 是否新注册
+    private String cardNumber;      // 🔥 新增
+    private String phone;           // 🔥 新增
+    private String gender;          // 🔥 新增
+    private String birthdate;       // 🔥 新增
+    private String homeAddress;     // 🔥 新增
+    private Boolean isNewPatient;
 }

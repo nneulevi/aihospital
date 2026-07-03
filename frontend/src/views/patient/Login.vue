@@ -222,15 +222,14 @@ const onPasswordLogin = async () => {
       password: loginForm.password,
       loginType: 'PATIENT'
     }
-    const res = await login(params) as LoginResponseVO
-    const token = res?.data?.token || res?.token
+    const res = await login(params) as LoginResponseVO  // 直接是 LoginResponseVO，没有 data
+    const token = res?.token
     if (token) {
-      const userData = res?.data || res
       userStore.login(token, {
-        employeeId: userData.employeeId,
-        realname: userData.realName || userData.realname || userData.username || '用户',
-        roleType: userData.roleType,
-        deptId: userData.deptId
+        employeeId: res.employeeId,
+        realname: res.realname || res.realname || res.username || '用户',
+        roleType: res.roleType,
+        deptId: res.deptId
       })
       showToast('登录成功')
       router.push('/patient')
@@ -248,19 +247,24 @@ const onPasswordLogin = async () => {
 const onCodeLogin = async () => {
   loading.value = true
   try {
-    const res = await authRegister(codeForm) as PatientLoginResponseVO
-    const token = res?.data?.token || res?.token
+    const res = await authRegister(codeForm) as PatientLoginResponseVO  // 直接是 PatientLoginResponseVO
+    const token = res?.token
     if (token) {
-      const userData = res?.data || res
       userStore.login(token, {
-        patientId: userData.patientId,
-        realname: userData.realName || userData.realname || userData.realName || '用户',
-        caseNumber: userData.caseNumber,
-        isNewPatient: userData.isNewPatient,
-        roleType: 'PATIENT'
+        patientId: res.patientId,
+        realname: res.realName || '用户',
+        caseNumber: res.caseNumber,
+        isNewPatient: res.isNewPatient,
+        roleType: 'PATIENT',
+        // 从表单中获取补充信息（后端 VO 没有这些字段）
+        cardNumber: codeForm.cardNumber,
+        phone: codeForm.phone,
+        gender: codeForm.gender,
+        birthdate: codeForm.birthdate,
+        homeAddress: codeForm.homeAddress
       })
-      isNewPatient.value = userData.isNewPatient || false
-      showToast(userData.isNewPatient ? '注册成功' : '登录成功')
+      isNewPatient.value = res.isNewPatient || false
+      showToast(res.isNewPatient ? '注册成功' : '登录成功')
       router.push('/patient')
     } else {
       showToast('登录失败：未获取到token')

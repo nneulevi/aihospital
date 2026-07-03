@@ -147,14 +147,14 @@ const queueNumber = ref(0)
 
 // ===== 服务网格 =====
 const serviceItems = [
-  { key: 'lab', label: '检验预约', icon: 'medical-o', bg: '#E3F2FD', color: '#2196F3' },
-  { key: 'exam', label: '检查预约', icon: 'scan-o', bg: '#E8F5E9', color: '#4CAF50' },
+  { key: 'lab', label: '检验预约', icon: 'filter-o', bg: '#E3F2FD', color: '#2196F3' },
+  { key: 'exam', label: '检查预约', icon: 'scan', bg: '#E8F5E9', color: '#4CAF50' },
   { key: 'consult', label: '在线咨询', icon: 'chat-o', bg: '#FFF3E0', color: '#FF9800' },
-  { key: 'report', label: '报告查询', icon: 'file-o', bg: '#FCE4EC', color: '#E91E63' },
-  { key: 'doctor', label: '出诊查询', icon: 'doctor-o', bg: '#E8EAF6', color: '#3F51B5' },
+  { key: 'report', label: '报告查询', icon: 'description', bg: '#FCE4EC', color: '#E91E63' },
+  { key: 'doctor', label: '出诊查询', icon: 'user-circle-o', bg: '#E8EAF6', color: '#3F51B5' },
   { key: 'revisit', label: '复诊预约', icon: 'calendar-o', bg: '#F3E5F5', color: '#9C27B0' },
   { key: 'prescription', label: '处方查询', icon: 'bill-o', bg: '#FFF8E1', color: '#FFC107' },
-  { key: 'physical', label: '健康体检', icon: 'heartbeat-o', bg: '#E0F7FA', color: '#00BCD4' },
+  { key: 'physical', label: '健康体检', icon: 'medal', bg: '#E0F7FA', color: '#00BCD4' },
   { key: 'more', label: '更多服务', icon: 'apps-o', bg: '#F5F5F5', color: '#9E9E9E' },
 ]
 
