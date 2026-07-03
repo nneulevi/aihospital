@@ -5,7 +5,7 @@
     <div class="doctor-header">
       <div class="header-left">
         <span class="brand">👨‍⚕️ 智能诊疗系统</span>
-        <span class="dept-tag">{{ doctorInfo?.department || '呼吸内科' }}</span>
+        <span class="dept-tag">{{ doctorInfo.department }}</span>
       </div>
       <div class="header-right">
         <van-icon name="wap-home-o" size="22" @click="goHome" />
@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showDialog, showToast } from 'vant'
 import { useUserStore } from '@/stores/user'
@@ -51,13 +51,13 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-// 模拟医生信息
-const doctorInfo = ref({
-  name: '张明',
-  department: '呼吸内科',
-  title: '主任医师',
-  hospital: '市中心医院'
-})
+// 从 store 获取医生信息
+const doctorInfo = computed(() => ({
+  name: userStore.userInfo?.realName || userStore.userInfo?.realname || '医生',
+  department: userStore.userInfo?.deptName || '呼吸内科',
+  title: userStore.userInfo?.title || '主治医师',
+  hospital: userStore.userInfo?.hospital || '市中心医院'
+}))
 
 const goHome = () => {
   // 如果在诊疗页，先保存草稿
@@ -85,13 +85,6 @@ const handleLogout = () => {
     router.push('/auth/login')
   }).catch(() => {})
 }
-
-onMounted(() => {
-  // 从store获取医生信息
-  if (userStore.userInfo) {
-    doctorInfo.value = { ...doctorInfo.value, ...userStore.userInfo }
-  }
-})
 </script>
 
 <style lang="scss" scoped>

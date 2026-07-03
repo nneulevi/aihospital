@@ -1,54 +1,71 @@
 <!-- src/views/doctor/DoctorDashboard.vue -->
 <template>
   <div class="doctor-dashboard">
-    <!-- 欢迎语 -->
     <div class="welcome-section">
       <div class="greeting">👋 您好，{{ doctorName }}</div>
       <div class="date">{{ today }}</div>
     </div>
 
-    <!-- 统计卡片 -->
     <div class="stats-bar">
       <div class="stat-item" @click="switchTab('pending')">
         <div class="stat-num">{{ pendingList.length }}</div>
         <div class="stat-label">待诊</div>
-        <van-tag v-if="pendingList.length > 0" type="danger" size="mini" class="badge">新</van-tag>
+        <van-tag v-if="pendingList.length > 0" type="danger" class="badge">新</van-tag>
       </div>
       <div class="stat-item" @click="switchTab('consulting')">
         <div class="stat-num">{{ consultingList.length }}</div>
         <div class="stat-label">就诊中</div>
-        <van-tag v-if="consultingList.length > 0" type="warning" size="mini" class="badge">进行中</van-tag>
+        <van-tag v-if="consultingList.length > 0" type="warning" class="badge">进行中</van-tag>
       </div>
       <div class="stat-item" @click="switchTab('finished')">
-        <div class="stat-num">{{ finishedToday }}</div>
+        <div class="stat-num">{{ finishedList.length }}</div>
         <div class="stat-label">今日已接诊</div>
       </div>
     </div>
 
-    <!-- 患者列表 -->
     <van-tabs v-model:active="listTab" class="patient-tabs" @change="onTabChange">
       <van-tab title="待诊队列" name="pending">
         <div class="patient-list">
           <van-pull-refresh v-model="refreshing" @refresh="loadPatients">
-            <div v-for="p in pendingList" :key="p.registerId" class="patient-card" @click="goToVisit(p)">
+            <div v-if="todayPending.length > 0" class="group-label">📅 今日待诊</div>
+            <div v-for="p in todayPending" :key="p.registerId" class="patient-card" @click="goToVisit(p)">
               <div class="patient-header">
                 <div class="patient-name">{{ p.patientName }}</div>
-                <van-tag type="primary" size="small">待诊</van-tag>
+                <van-tag type="primary">待诊</van-tag>
               </div>
               <div class="patient-info">
-                <span>{{ p.gender || '男' }}</span>
-                <span>{{ p.age || 35 }}岁</span>
-                <span>病历号: {{ p.caseNumber || 'HN202600001' }}</span>
+                <span>{{ p.gender || '未知' }}</span>
+                <span>{{ p.age || '--' }}岁</span>
+                <span>病历号: {{ p.caseNumber || '--' }}</span>
               </div>
               <div class="patient-time">
                 <van-icon name="clock-o" />
                 {{ formatTime(p.registrationTime) }} {{ p.noon === 'MORNING' ? '上午' : '下午' }}
-                <span class="wait-time" v-if="p.waitTime">等待 {{ p.waitTime }}min</span>
-              </div>
-              <div class="patient-tags" v-if="p.tags && p.tags.length">
-                <van-tag v-for="tag in p.tags" :key="tag" size="mini" plain>{{ tag }}</van-tag>
+                <span class="wait-time" v-if="p.waitMinutes > 0">等待 {{ p.waitMinutes }}min</span>
               </div>
             </div>
+
+            <div v-if="otherPending.length > 0" class="group-label" :class="{ expired: hasExpired }">
+              {{ hasExpired ? '⚠️ 过期未诊' : '📋 其他日期' }}
+            </div>
+            <div v-for="p in otherPending" :key="p.registerId" class="patient-card" :class="{ expired: p.isExpired }" @click="goToVisit(p)">
+              <div class="patient-header">
+                <div class="patient-name">{{ p.patientName }}</div>
+                <van-tag type="primary" plain>待诊</van-tag>
+              </div>
+              <div class="patient-info">
+                <span>{{ p.gender || '未知' }}</span>
+                <span>{{ p.age || '--' }}岁</span>
+                <span>病历号: {{ p.caseNumber || '--' }}</span>
+              </div>
+              <div class="patient-time">
+                <van-icon name="clock-o" />
+                {{ formatDateTime(p.registrationTime) }}
+                <span v-if="p.isExpired" class="expired-tag">已过期</span>
+                <span v-else-if="p.isFuture" class="future-tag">预约</span>
+              </div>
+            </div>
+
             <div v-if="pendingList.length === 0" class="empty-state">
               <van-icon name="smile-o" size="48" color="#C4B8A8" />
               <p>暂无待诊患者</p>
@@ -62,19 +79,15 @@
           <div v-for="p in consultingList" :key="p.registerId" class="patient-card active" @click="goToVisit(p)">
             <div class="patient-header">
               <div class="patient-name">{{ p.patientName }}</div>
-              <van-tag type="warning" size="small">就诊中</van-tag>
+              <van-tag type="warning">就诊中</van-tag>
             </div>
             <div class="patient-info">
-              <span>{{ p.gender || '女' }}</span>
-              <span>{{ p.age || 42 }}岁</span>
-              <span>病历号: {{ p.caseNumber || 'HN202600002' }}</span>
+              <span>{{ p.gender || '未知' }}</span>
+              <span>{{ p.age || '--' }}岁</span>
+              <span>病历号: {{ p.caseNumber || '--' }}</span>
             </div>
             <div class="patient-time">
               <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }}
-            </div>
-            <div class="progress-bar" v-if="p.progress">
-              <span class="progress-label">诊疗进度</span>
-              <van-progress :percentage="p.progress" stroke-width="6" color="#5E60CE" />
             </div>
           </div>
           <div v-if="consultingList.length === 0" class="empty-state">
@@ -89,15 +102,14 @@
           <div v-for="p in finishedList" :key="p.registerId" class="patient-card done">
             <div class="patient-header">
               <div class="patient-name">{{ p.patientName }}</div>
-              <van-tag type="success" size="small">已完成</van-tag>
+              <van-tag type="success">已完成</van-tag>
             </div>
             <div class="patient-info">
-              <span>{{ p.gender || '男' }}</span>
-              <span>{{ p.age || 28 }}岁</span>
+              <span>{{ p.gender || '未知' }}</span>
+              <span>{{ p.age || '--' }}岁</span>
             </div>
             <div class="patient-time">
               <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }}
-              <span class="duration" v-if="p.duration">诊疗 {{ p.duration }}min</span>
             </div>
           </div>
           <div v-if="finishedList.length === 0" class="empty-state">
@@ -115,102 +127,116 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
+import { useUserStore } from '@/stores/user'
+import { getProfile, getPatients } from '@/api'
 
 const router = useRouter()
+const userStore = useUserStore()
 const listTab = ref('pending')
 const refreshing = ref(false)
 
-// 模拟医生信息
-const doctorName = ref('张明医生')
+const doctorId = computed(() => userStore.doctorId || 0)
+const doctorName = ref('')
 
-// 模拟数据
-const mockPatients = [
-  {
-    registerId: 1001,
-    patientName: '王建国',
-    gender: '男',
-    age: 58,
-    caseNumber: 'HN202600001',
-    registrationTime: '2026-06-24 08:30:00',
-    noon: 'MORNING',
-    visitState: 'REGISTERED',
-    tags: ['复诊', '高血压'],
-    waitTime: 5
-  },
-  {
-    registerId: 1002,
-    patientName: '李秀英',
-    gender: '女',
-    age: 42,
-    caseNumber: 'HN202600002',
-    registrationTime: '2026-06-24 09:15:00',
-    noon: 'MORNING',
-    visitState: 'REGISTERED',
-    tags: ['首诊', '咳嗽'],
-    waitTime: 15
-  },
-  {
-    registerId: 1003,
-    patientName: '张伟',
-    gender: '男',
-    age: 35,
-    caseNumber: 'HN202600003',
-    registrationTime: '2026-06-24 08:45:00',
-    noon: 'MORNING',
-    visitState: 'CONSULTING',
-    progress: 60
-  },
-  {
-    registerId: 1004,
-    patientName: '赵丽华',
-    gender: '女',
-    age: 67,
-    caseNumber: 'HN202600004',
-    registrationTime: '2026-06-24 07:50:00',
-    noon: 'MORNING',
-    visitState: 'FINISHED',
-    duration: 25
-  },
-  {
-    registerId: 1005,
-    patientName: '孙明',
-    gender: '男',
-    age: 28,
-    caseNumber: 'HN202600005',
-    registrationTime: '2026-06-24 09:30:00',
-    noon: 'MORNING',
-    visitState: 'FINISHED',
-    duration: 18
+const pendingList = ref<any[]>([])
+const consultingList = ref<any[]>([])
+const finishedList = ref<any[]>([])
+
+const todayStr = dayjs().format('YYYY-MM-DD')
+
+const todayPending = computed(() => pendingList.value.filter(p => p.isToday))
+const otherPending = computed(() => pendingList.value.filter(p => !p.isToday))
+const hasExpired = computed(() => otherPending.value.some(p => p.isExpired))
+
+const loadDoctorProfile = async () => {
+  const id = doctorId.value
+  if (!id) {
+    console.warn('[DoctorDashboard] doctorId 为空')
+    doctorName.value = userStore.userInfo?.realName || userStore.userInfo?.realname || '医生'
+    return
   }
-]
 
-const allPatients = ref(mockPatients)
-const finishedToday = computed(() => finishedList.value.length)
-
-const pendingList = ref([])
-const consultingList = ref([])
-const finishedList = ref([])
+  try {
+    // ✅ 正确：直接传递参数对象
+    const res = await getProfile({ doctorId: id })
+    doctorName.value = res.realname || '医生'
+  } catch (e) {
+    console.error('[DoctorDashboard] 加载医生信息失败:', e)
+    doctorName.value = userStore.userInfo?.realName || userStore.userInfo?.realname || '医生'
+  }
+}
 
 const loadPatients = async () => {
+  const id = doctorId.value
+  if (!id) {
+    console.warn('[DoctorDashboard] doctorId 为空，无法加载患者列表')
+    return
+  }
+
   refreshing.value = true
-  // 模拟网络请求
-  await new Promise(resolve => setTimeout(resolve, 500))
+  try {
+    // ✅ 正确：直接传递参数对象，不要嵌套在 query 中
+    const [pendingRes, consultingRes, finishedRes] = await Promise.all([
+      getPatients({
+        doctorId: id,
+        visitState: 'REGISTERED',
+        pageNum: 1,
+        pageSize: 100
+      }),
+      getPatients({
+        doctorId: id,
+        visitState: 'CONSULTING',
+        pageNum: 1,
+        pageSize: 100
+      }),
+      getPatients({
+        doctorId: id,
+        visitState: 'FINISHED',
+        pageNum: 1,
+        pageSize: 100
+      })
+    ])
 
-  pendingList.value = allPatients.value.filter((p: any) => p.visitState === 'REGISTERED')
-  consultingList.value = allPatients.value.filter((p: any) => p.visitState === 'CONSULTING')
-  finishedList.value = allPatients.value.filter((p: any) => p.visitState === 'FINISHED')
+    const processList = (res: any, state: string) => {
+      const records = res.records || res.content || []
+      return records.map((p: any) => {
+        const visitDate = p.registrationTime ? dayjs(p.registrationTime).format('YYYY-MM-DD') : ''
+        const regTime = p.registrationTime ? dayjs(p.registrationTime) : null
+        return {
+          ...p,
+          visitDate,
+          isToday: visitDate === todayStr,
+          isExpired: visitDate && visitDate < todayStr,
+          isFuture: visitDate && visitDate > todayStr,
+          waitMinutes: regTime ? dayjs().diff(regTime, 'minute') : 0
+        }
+      })
+    }
 
-  refreshing.value = false
+    const allPending = processList(pendingRes, 'REGISTERED')
+    const allConsulting = processList(consultingRes, 'CONSULTING')
+    const allFinished = processList(finishedRes, 'FINISHED')
+
+    pendingList.value = allPending.sort((a: any, b: any) => {
+      if (a.isToday && !b.isToday) return -1
+      if (!a.isToday && b.isToday) return 1
+      if (a.isExpired && !b.isExpired) return -1
+      if (!a.isExpired && b.isExpired) return 1
+      return dayjs(a.registrationTime).valueOf() - dayjs(b.registrationTime).valueOf()
+    })
+
+    consultingList.value = allConsulting
+    finishedList.value = allFinished.filter((p: any) => p.isToday)
+  } catch (e: any) {
+    console.error('[DoctorDashboard] 加载患者列表失败:', e)
+    showToast('加载失败: ' + (e.message || '未知错误'))
+  } finally {
+    refreshing.value = false
+  }
 }
 
-const switchTab = (tab: string) => {
-  listTab.value = tab
-}
-
-const onTabChange = () => {
-  // Tab切换时刷新数据
-  loadPatients()
-}
+const switchTab = (tab: string) => { listTab.value = tab }
+const onTabChange = () => { loadPatients() }
 
 const goToVisit = (patient: any) => {
   router.push({
@@ -223,11 +249,22 @@ const goToVisit = (patient: any) => {
   })
 }
 
-const formatTime = (time?: string) => time ? dayjs(time).format('HH:mm') : ''
+const formatTime = (time?: string) => time ? dayjs(time).format('HH:mm') : '--:--'
+const formatDateTime = (time?: string) => time ? dayjs(time).format('MM-DD HH:mm') : ''
 
 const today = computed(() => dayjs().format('YYYY年MM月DD日 dddd'))
 
 onMounted(() => {
+  console.log('[DoctorDashboard] onMounted - isLoggedIn:', userStore.isLoggedIn)
+  console.log('[DoctorDashboard] onMounted - doctorId:', userStore.doctorId)
+  console.log('[DoctorDashboard] onMounted - userInfo:', userStore.userInfo)
+
+  if (!userStore.isLoggedIn || !userStore.doctorId) {
+    showToast('请先登录')
+    router.push('/auth/login')
+    return
+  }
+  loadDoctorProfile()
   loadPatients()
 })
 </script>
@@ -305,11 +342,24 @@ onMounted(() => {
   padding: 8px 0;
 }
 
+.group-label {
+  font-size: 13px;
+  color: #666;
+  padding: 8px 12px;
+  font-weight: 500;
+
+  &.expired {
+    color: #E74C3C;
+  }
+}
+
 .patient-card {
   background: white;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
+  margin-left: 12px;
+  margin-right: 12px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   cursor: pointer;
   transition: all 0.3s;
@@ -325,6 +375,11 @@ onMounted(() => {
   &.done {
     border-left: 4px solid #8CB369;
     opacity: 0.8;
+  }
+
+  &.expired {
+    border-left: 4px solid #E74C3C;
+    background: #FFF5F5;
   }
 }
 
@@ -361,26 +416,15 @@ onMounted(() => {
     margin-left: 8px;
   }
 
-  .duration {
+  .expired-tag {
+    color: #E74C3C;
+    margin-left: 8px;
+    font-weight: 500;
+  }
+
+  .future-tag {
     color: #27AE60;
     margin-left: 8px;
-  }
-}
-
-.patient-tags {
-  margin-top: 8px;
-  display: flex;
-  gap: 6px;
-}
-
-.progress-bar {
-  margin-top: 8px;
-
-  .progress-label {
-    font-size: 12px;
-    color: #7F8C8D;
-    margin-bottom: 4px;
-    display: block;
   }
 }
 

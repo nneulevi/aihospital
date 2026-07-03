@@ -3,12 +3,15 @@ package com.neuedu.his.controller;
 import com.neuedu.his.exception.BusinessException;
 import com.neuedu.his.mapper.RegisterMapper;
 import com.neuedu.his.model.dto.*;
+import com.neuedu.his.model.entity.Prescription;
 import com.neuedu.his.model.entity.Register;
 import com.neuedu.his.model.vo.*;
 import com.neuedu.his.service.DoctorService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/doctor")
@@ -70,6 +73,14 @@ public class DoctorController {
         doctorService.confirmDiagnosis(request);
     }
 
+    /**
+     * 医生确诊 - 保存诊断内容并结束就诊
+     */
+    @PutMapping("/diagnosis/receive")
+    public void receiveDiagnosis(@RequestBody DiagnosisReceiveRequestDTO request) {
+        doctorService.receiveDiagnosis(request);
+    }
+
     @GetMapping("/check-results/{registerId}")
     public CheckResultVO getCheckResults(@PathVariable("registerId") Integer registerId) {
         return doctorService.getCheckResults(registerId);
@@ -89,4 +100,23 @@ public class DoctorController {
         return doctorService.getCheckResultDetail(id);
     }
 
+    @GetMapping("/medical-record/{registerId}")
+    public MedicalRecordSaveRequestDTO getMedicalRecord(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getMedicalRecord(registerId);
+    }
+
+    @GetMapping("/orders/{registerId}")
+    public CheckResultVO getOrders(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getOrders(registerId);
+    }
+
+    @GetMapping("/prescriptions/{registerId}")
+    public List<Prescription> getPrescriptionsByRegisterId(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getPrescriptionsByRegisterId(registerId);
+    }
+
+    @GetMapping("/diagnosis/{registerId}")
+    public DiagnosisConfirmRequestDTO getDiagnosis(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getDiagnosis(registerId);
+    }
 }

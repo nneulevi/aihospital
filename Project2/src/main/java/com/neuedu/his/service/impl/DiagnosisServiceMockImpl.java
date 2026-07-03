@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-@Service          // �?添加这个
-@Primary          // �?添加这个
+@Service
+@Primary
 public class DiagnosisServiceMockImpl implements DiagnosisService {
 
     @Autowired

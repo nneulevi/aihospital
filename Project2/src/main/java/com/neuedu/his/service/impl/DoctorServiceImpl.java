@@ -13,8 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class DoctorServiceImpl implements DoctorService {
@@ -79,13 +81,24 @@ public class DoctorServiceImpl implements DoctorService {
         return result;
     }
 
+    /**
+     * 公共校验：挂号记录是否存在且未取消
+     */
+    private void checkRegisterCanOperate(Register register, String operationName) {
+        if (register == null) {
+            throw new BusinessException("挂号记录不存在");
+        }
+        // 只拦截已取消状态，允许 FINISHED 等状态下继续操作
+        if ("CANCELLED".equals(register.getVisitState())) {
+            throw new BusinessException("该患者就诊已取消，无法" + operationName);
+        }
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveMedicalRecord(MedicalRecordSaveRequestDTO request) {
         Register register = registerMapper.selectById(request.getRegisterId());
-        if (register == null || !"DOCTOR_RECEIVED".equals(register.getVisitState())) {
-            throw new BusinessException("该患者未接诊，无法保存病历");
-        }
+        checkRegisterCanOperate(register, "保存病历");
 
         MedicalRecord exist = medicalRecordMapper.selectByRegisterId(request.getRegisterId());
         if (exist != null) {
@@ -121,9 +134,7 @@ public class DoctorServiceImpl implements DoctorService {
     @Transactional(rollbackFor = Exception.class)
     public void createCheckRequest(CheckRequestCreateDTO request) {
         Register register = registerMapper.selectById(request.getRegisterId());
-        if (register == null || !"DOCTOR_RECEIVED".equals(register.getVisitState())) {
-            throw new BusinessException("该患者未接诊，无法开立检查");
-        }
+        checkRegisterCanOperate(register, "开立检查");
 
         for (CheckRequestCreateDTO.CheckItemDTO item : request.getItems()) {
             CheckRequest check = new CheckRequest();
@@ -150,9 +161,7 @@ public class DoctorServiceImpl implements DoctorService {
     @Transactional(rollbackFor = Exception.class)
     public void createInspectionRequest(InspectionRequestCreateDTO request) {
         Register register = registerMapper.selectById(request.getRegisterId());
-        if (register == null || !"DOCTOR_RECEIVED".equals(register.getVisitState())) {
-            throw new BusinessException("该患者未接诊，无法开立检验");
-        }
+        checkRegisterCanOperate(register, "开立检验");
 
         for (InspectionRequestCreateDTO.InspectionItemDTO item : request.getItems()) {
             InspectionRequest inspection = new InspectionRequest();
@@ -179,9 +188,7 @@ public class DoctorServiceImpl implements DoctorService {
     @Transactional(rollbackFor = Exception.class)
     public void createDisposalRequest(DisposalRequestCreateDTO request) {
         Register register = registerMapper.selectById(request.getRegisterId());
-        if (register == null || !"DOCTOR_RECEIVED".equals(register.getVisitState())) {
-            throw new BusinessException("该患者未接诊，无法开立处置");
-        }
+        checkRegisterCanOperate(register, "开立处置");
 
         for (DisposalRequestCreateDTO.DisposalItemDTO item : request.getItems()) {
             DisposalRequest disposal = new DisposalRequest();
@@ -208,9 +215,7 @@ public class DoctorServiceImpl implements DoctorService {
     @Transactional(rollbackFor = Exception.class)
     public Integer createPrescription(PrescriptionCreateDTO request) {
         Register register = registerMapper.selectById(request.getRegisterId());
-        if (register == null || !"DOCTOR_RECEIVED".equals(register.getVisitState())) {
-            throw new BusinessException("该患者未接诊，无法开立处方");
-        }
+        checkRegisterCanOperate(register, "开立处方");
 
         Prescription prescription = new Prescription();
         prescription.setRegisterId(request.getRegisterId());
@@ -293,6 +298,56 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void receiveDiagnosis(DiagnosisReceiveRequestDTO request) {
+        Integer registerId = request.getRegisterId();
+        if (registerId == null) {
+            throw new BusinessException("挂号ID不能为空");
+        }
+
+        Register register = registerMapper.selectById(registerId);
+        if (register == null) {
+            throw new BusinessException("挂号记录不存在");
+        }
+
+        // 1. 更新挂号状态为 FINISHED
+        register.setVisitState("FINISHED");
+        registerMapper.update(register);
+
+        // 2. 保存或更新病历中的诊断信息
+        MedicalRecord medicalRecord = medicalRecordMapper.selectByRegisterId(registerId);
+        if (medicalRecord == null) {
+            medicalRecord = new MedicalRecord();
+            medicalRecord.setRegisterId(registerId);
+            medicalRecord.setDoctorId(register.getEmployeeId());
+        }
+
+        if (request.getDiagnosis() != null) {
+            medicalRecord.setDiagnosis(request.getDiagnosis());
+        }
+        if (request.getCure() != null) {
+            medicalRecord.setCure(request.getCure());
+        }
+
+        if (medicalRecord.getId() == null) {
+            medicalRecordMapper.insert(medicalRecord);
+        } else {
+            medicalRecordMapper.updateById(medicalRecord);
+        }
+
+        // 3. 保存疾病关联
+        if (request.getDiseaseIds() != null && !request.getDiseaseIds().isEmpty()) {
+            medicalRecordDiseaseMapper.deleteByMedicalRecordId(medicalRecord.getId());
+            for (Integer diseaseId : request.getDiseaseIds()) {
+                MedicalRecordDisease mrd = new MedicalRecordDisease();
+                mrd.setMedicalRecordId(medicalRecord.getId());
+                mrd.setDiseaseId(diseaseId);
+                medicalRecordDiseaseMapper.insert(mrd);
+            }
+        }
+    }
+
+    @Override
     public CheckResultVO getCheckResults(Integer registerId) {
         CheckResultVO vo = new CheckResultVO();
         vo.setCheckRequests(checkRequestMapper.selectByRegisterId(registerId));
@@ -359,5 +414,53 @@ public class DoctorServiceImpl implements DoctorService {
         return vo;
     }
 
+    @Override
+    public MedicalRecordSaveRequestDTO getMedicalRecord(Integer registerId) {
+        MedicalRecord record = medicalRecordMapper.selectByRegisterId(registerId);
+        if (record == null) return null;
 
+        MedicalRecordSaveRequestDTO dto = new MedicalRecordSaveRequestDTO();
+        dto.setRegisterId(record.getRegisterId());
+        dto.setReadme(record.getReadme());
+        dto.setPresent(record.getPresent());
+        dto.setPresentTreat(record.getPresentTreat());
+        dto.setHistory(record.getHistory());
+        dto.setAllergy(record.getAllergy());
+        dto.setPhysique(record.getPhysique());
+        dto.setProposal(record.getProposal());
+        dto.setCareful(record.getCareful());
+        dto.setDiagnosis(record.getDiagnosis());
+        return dto;
+    }
+
+    @Override
+    public CheckResultVO getOrders(Integer registerId) {
+        CheckResultVO vo = new CheckResultVO();
+        vo.setCheckRequests(checkRequestMapper.selectByRegisterId(registerId));
+        vo.setInspectionRequests(inspectionRequestMapper.selectByRegisterId(registerId));
+        vo.setDisposalRequests(disposalRequestMapper.selectByRegisterId(registerId));
+        return vo;
+    }
+
+    @Override
+    public List<Prescription> getPrescriptionsByRegisterId(Integer registerId) {
+        return prescriptionMapper.selectByRegisterId(registerId);
+    }
+
+    @Override
+    public DiagnosisConfirmRequestDTO getDiagnosis(Integer registerId) {
+        MedicalRecord record = medicalRecordMapper.selectByRegisterId(registerId);
+        if (record == null) return null;
+
+        DiagnosisConfirmRequestDTO dto = new DiagnosisConfirmRequestDTO();
+        dto.setRegisterId(record.getRegisterId());
+        dto.setDiagnosis(record.getDiagnosis());
+        dto.setCure(record.getCure());
+
+        List<MedicalRecordDisease> diseases = medicalRecordDiseaseMapper.selectByMedicalRecordId(record.getId());
+        if (diseases != null && !diseases.isEmpty()) {
+            dto.setDiseaseIds(diseases.stream().map(MedicalRecordDisease::getDiseaseId).collect(Collectors.toList()));
+        }
+        return dto;
+    }
 }

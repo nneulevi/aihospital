@@ -4,11 +4,9 @@ import { request } from '@/utils/request'
 
 const api = getOpenAPIDefinition()
 
-// 原有的 wrap 函数保持不变
 const wrap = (fn: Function) => async (...args: any[]) => {
     const res = await fn(...args)
     if (!res || typeof res !== 'object' || Array.isArray(res)) return res
-
     return new Proxy(res, {
         get(target, prop) {
             if (prop === 'data') return target
@@ -47,14 +45,10 @@ export const getReportDetail = wrap(api.getReportDetail)
 export const markReportRead = wrap(api.markReportRead)
 export const getCurrentPatient = wrap(api.getCurrentPatient)
 
-// ========== 患者端 - 新增 4 个预约相关 API ==========
-// 查询待预约检验列表（医生开的、未预约的、状态为 CREATED）
+// ========== 患者端 - 预约相关 API ==========
 export const getPendingInspectionRequests = wrap(api.getPendingInspectionRequests)
-// 查询待预约检查列表（医生开的、未预约的、状态为 CREATED）
 export const getPendingCheckRequests = wrap(api.getPendingCheckRequests)
-// 患者预约检验（更新 booked_time + 状态改为 BOOKED）
 export const bookInspectionRequest = wrap(api.bookInspectionRequest)
-// 患者预约检查（更新 booked_time + 状态改为 BOOKED）
 export const bookCheckRequest = wrap(api.bookCheckRequest)
 
 // ========== 医生/管理员认证 ==========
@@ -67,6 +61,7 @@ export const authLogout = wrap(api.logout1)
 
 // ========== 医生端 ==========
 export const confirmDiagnosis = wrap(api.confirmDiagnosis)
+export const receiveDiagnosis = wrap(api.receiveDiagnosis)  // ✅ 新增：医生确诊API
 export const createPrescription = wrap(api.createPrescription)
 export const saveMedicalRecord = wrap(api.saveMedicalRecord)
 export const createInspectionRequest = wrap(api.createInspectionRequest1)
@@ -78,6 +73,12 @@ export const getCheckResults = wrap(api.getCheckResults)
 export const getCheckResultDetail = wrap(api.getCheckResultDetail)
 export const getStatistics = wrap(api.getStatistics)
 export const getProfile = wrap(api.getProfile)
+
+// ========== 医生端 - 查询 API ==========
+export const getMedicalRecord = wrap(api.getMedicalRecord)
+export const getOrdersByRegisterId = wrap(api.getOrders1)
+export const getPrescriptionsByRegisterId = wrap(api.getPrescriptionsByRegisterId)
+export const getDiagnosis = wrap(api.getDiagnosis)
 
 // ========== AI 模块 ==========
 export const scheduleGenerate = wrap(api.generate)

@@ -932,6 +932,36 @@ Content-Type: application/json
   "bookedTime": "2026-07-02T09:00:00"
 }
 
+### ========================================
+### 医生端 - 新增查询API（用于前端回显）
+### ========================================
 
+### 42. 加载已有病历
+GET {{baseUrl}}/api/doctor/medical-record/6
+Authorization: Bearer {{token}}
 
+### 43. 加载已开申请（检查/检验/处置）
+GET {{baseUrl}}/api/doctor/orders/6
+Authorization: Bearer {{token}}
+
+### 44. 加载已开处方
+GET {{baseUrl}}/api/doctor/prescriptions/6
+Authorization: Bearer {{token}}
+
+### 45. 加载确诊信息
+GET {{baseUrl}}/api/doctor/diagnosis/6
+Authorization: Bearer {{token}}
+
+### 46. 医生确诊（接诊完成）
+# 自动流转挂号状态并完成确诊
+PUT {{baseUrl}}/api/doctor/diagnosis/receive
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "registerId": 100,
+  "diagnosis": "诊断",
+  "cure": "治疗方案",
+  "diseaseIds": [2]
+}
 

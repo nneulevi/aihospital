@@ -252,7 +252,60 @@ const fillTestAccount = (acc: any) => {
   loginType.value = 'password'
 }
 
-// 密码登录
+// ===== 处理登录响应 =====
+const handleLoginResponse = (res: LoginResponseVO, roleType: 'DOCTOR' | 'ADMIN') => {
+  console.log('[StaffLogin] 登录响应:', res)
+
+  if (!res.token) {
+    ElMessage.error('登录失败：未获取到token')
+    return
+  }
+
+  // 从后端返回的数据中提取字段
+  const responseData = res as any
+
+  // 员工ID：从 id 字段获取（医生有值，管理员可能为null）
+  const employeeId = responseData.id || responseData.employeeId || null
+  // 科室ID：从 deptId 字段获取（医生有值，管理员为null）
+  const deptId = responseData.deptId || responseData.departmentId || null
+  // 角色类型
+  const finalRoleType = responseData.roleType || roleType
+  // 真实姓名
+  const realname = responseData.realname || responseData.realName || ''
+
+  console.log('[StaffLogin] 提取的数据:', {
+    employeeId,
+    deptId,
+    roleType: finalRoleType,
+    realname
+  })
+
+  // 构建用户信息
+  const userInfo = {
+    employeeId: employeeId,
+    id: employeeId,  // 兼容 id 字段
+    realname: realname,
+    roleType: finalRoleType,
+    deptId: deptId
+  }
+
+  // 登录到 store
+  userStore.login(res.token, userInfo)
+
+  console.log('[StaffLogin] 登录后 userStore.doctorId:', userStore.doctorId)
+  console.log('[StaffLogin] 登录后 userStore.userInfo:', userStore.userInfo)
+
+  ElMessage.success('登录成功')
+
+  // 根据角色跳转
+  if (finalRoleType === 'ADMIN') {
+    router.push('/admin')
+  } else {
+    router.push('/doctor')
+  }
+}
+
+// ===== 密码登录 =====
 const handlePwdLogin = async () => {
   const valid = await pwdFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -265,25 +318,16 @@ const handlePwdLogin = async () => {
       loginType: staffRole.value
     }
     const res: LoginResponseVO = await login(params)
-    if (res.token) {
-      userStore.login(res.token, {
-        employeeId: res.employeeId,
-        realname: res.realname,
-        roleType: res.roleType,
-        deptId: res.deptId
-      })
-      ElMessage.success('登录成功')
-      // 跳转
-      router.push(res.roleType === 'ADMIN' ? '/admin' : '/doctor')
-    }
+    handleLoginResponse(res, staffRole.value)
   } catch (error: any) {
+    console.error('[StaffLogin] 登录失败:', error)
     ElMessage.error(error.message || '登录失败')
   } finally {
     loading.value = false
   }
 }
 
-// 验证码登录
+// ===== 验证码登录 =====
 const handleCodeLogin = async () => {
   const valid = await codeFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -295,17 +339,9 @@ const handleCodeLogin = async () => {
       verifyCode: codeForm.code,
       loginType: staffRole.value
     } as any)
-    if (res.token) {
-      userStore.login(res.token, {
-        employeeId: res.employeeId,
-        realname: res.realname,
-        roleType: res.roleType,
-        deptId: res.deptId
-      })
-      ElMessage.success('登录成功')
-      router.push(res.roleType === 'ADMIN' ? '/admin' : '/doctor')
-    }
+    handleLoginResponse(res, staffRole.value)
   } catch (error: any) {
+    console.error('[StaffLogin] 登录失败:', error)
     ElMessage.error(error.message || '登录失败')
   } finally {
     loading.value = false

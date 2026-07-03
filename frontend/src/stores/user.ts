@@ -28,19 +28,28 @@ export const useUserStore = defineStore('user', () => {
         return userInfo.value?.realName || userInfo.value?.realname || ''
     })
 
-    // ID
+    // ID - 兼容多种字段名
     const userId = computed(() => {
         return userInfo.value?.patientId || userInfo.value?.employeeId || null
     })
-    const doctorId = computed(() => userInfo.value?.employeeId || null)
+
+    const doctorId = computed(() => {
+        // 兼容 employeeId 和 id 两种字段
+        const id = userInfo.value?.employeeId || userInfo.value?.id || null
+        console.log('[userStore] doctorId computed:', id, 'userInfo:', userInfo.value)
+        return id
+    })
+
     const patientId = computed(() => userInfo.value?.patientId || null)
 
     // ===== 登录 =====
     const login = (newToken: string, user: UserInfo) => {
+        console.log('[userStore] login called with:', { newToken, user })
         token.value = newToken
         userInfo.value = user
         setToken(newToken)
         setUser(user)
+        console.log('[userStore] after login - doctorId:', doctorId.value)
     }
 
     // ===== 退出登录 =====
@@ -51,7 +60,7 @@ export const useUserStore = defineStore('user', () => {
         removeUser()
     }
 
-    // ===== 切换就诊人（更新当前患者信息） =====
+    // ===== 切换就诊人 =====
     const setCurrentPatient = (patient: {
         patientId: number
         realName?: string
@@ -82,7 +91,7 @@ export const useUserStore = defineStore('user', () => {
         }
     }
 
-    // ===== 更新用户信息（用于补充从接口获取的额外字段） =====
+    // ===== 更新用户信息 =====
     const updateUserInfo = (partial: Partial<UserInfo>) => {
         if (userInfo.value) {
             userInfo.value = {

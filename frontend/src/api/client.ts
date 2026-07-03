@@ -27,6 +27,7 @@ import type {
   DeptQueueVO,
   DeptStatsVO,
   DiagnosisConfirmRequestDTO,
+  DiagnosisReceiveRequestDTO,
   DiagnosisSuggestRequestDTO,
   DiagnosisSuggestResponseVO,
   DispenseRequestDTO,
@@ -85,6 +86,7 @@ import type {
   PatientRegisterRequestDTO,
   PendingCheckRequestVO,
   PendingInspectionRequestVO,
+  Prescription,
   PrescriptionCreateDTO,
   PrescriptionDetailVO,
   PrescriptionDispenseVO,
@@ -138,6 +140,15 @@ const bookCheckRequest = <TData = AxiosResponse<void>>(
     return axios.default.put(
       `/api/patient/check-request/book`,
       bookRequestDTO,options
+    );
+  }
+
+const receiveDiagnosis = <TData = AxiosResponse<void>>(
+    diagnosisReceiveRequestDTO: DiagnosisReceiveRequestDTO, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.put(
+      `/api/doctor/diagnosis/receive`,
+      diagnosisReceiveRequestDTO,options
     );
   }
 
@@ -610,6 +621,14 @@ const getProfile = <TData = AxiosResponse<DoctorProfileVO>>(
     );
   }
 
+const getPrescriptionsByRegisterId = <TData = AxiosResponse<Prescription[]>>(
+    registerId: number, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/doctor/prescriptions/${registerId}`,options
+    );
+  }
+
 const getPatients = <TData = AxiosResponse<PageResultDoctorPatientListVO>>(
     params: GetPatientsParams, options?: AxiosRequestConfig
  ): Promise<TData> => {
@@ -625,6 +644,30 @@ const getPatientDetail = <TData = AxiosResponse<DoctorPatientListVO>>(
  ): Promise<TData> => {
     return axios.default.get(
       `/api/doctor/patients/${registerId}`,options
+    );
+  }
+
+const getOrders1 = <TData = AxiosResponse<CheckResultVO>>(
+    registerId: number, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/doctor/orders/${registerId}`,options
+    );
+  }
+
+const getMedicalRecord = <TData = AxiosResponse<MedicalRecordSaveRequestDTO>>(
+    registerId: number, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/doctor/medical-record/${registerId}`,options
+    );
+  }
+
+const getDiagnosis = <TData = AxiosResponse<DiagnosisConfirmRequestDTO>>(
+    registerId: number, options?: AxiosRequestConfig
+ ): Promise<TData> => {
+    return axios.default.get(
+      `/api/doctor/diagnosis/${registerId}`,options
     );
   }
 
@@ -760,11 +803,12 @@ const listDepartments1 = <TData = AxiosResponse<Department[]>>(
     );
   }
 
-return {markReportRead,cancelRegister,bookInspectionRequest,bookCheckRequest,confirmDiagnosis,switchPatient,sendCode,register,logout,createInspectionRequest,submitCheckin,createCheckRequest,register1,createPrescription,saveMedicalRecord,createInspectionRequest1,createDisposalRequest,createCheckRequest1,sendCode1,logout1,login,loginByCode,generate,generate1,upload,analyze,suggest,triage,refund,charge,createEmployee,drugRefund,dispense,getReports,getReportDetail,getTodayRegisters,getRecords,getRecordDetail,getQueueStatus,getQueueDepts,getQueueCount,getPrescriptions,getPrescriptionDetail,getOrders,getInspectionList,getCheckList,list,getPendingInspectionRequests,getDoctors,listDepartments,getCurrentPatient,getPendingCheckRequests,getInventory,getStatistics,getProfile,getPatients,getPatientDetail,getCheckResults,getCheckResultDetail,getResults,getDoctorStats,getDeptStats,getFinanceRecords,getPendingItems,getPaidItems,getDailySummary,listEmployees,listDoctors,getPendingRefund,getPendingDispense,getDrugInventory,listDepartments1}};
+return {markReportRead,cancelRegister,bookInspectionRequest,bookCheckRequest,receiveDiagnosis,confirmDiagnosis,switchPatient,sendCode,register,logout,createInspectionRequest,submitCheckin,createCheckRequest,register1,createPrescription,saveMedicalRecord,createInspectionRequest1,createDisposalRequest,createCheckRequest1,sendCode1,logout1,login,loginByCode,generate,generate1,upload,analyze,suggest,triage,refund,charge,createEmployee,drugRefund,dispense,getReports,getReportDetail,getTodayRegisters,getRecords,getRecordDetail,getQueueStatus,getQueueDepts,getQueueCount,getPrescriptions,getPrescriptionDetail,getOrders,getInspectionList,getCheckList,list,getPendingInspectionRequests,getDoctors,listDepartments,getCurrentPatient,getPendingCheckRequests,getInventory,getStatistics,getProfile,getPrescriptionsByRegisterId,getPatients,getPatientDetail,getOrders1,getMedicalRecord,getDiagnosis,getCheckResults,getCheckResultDetail,getResults,getDoctorStats,getDeptStats,getFinanceRecords,getPendingItems,getPaidItems,getDailySummary,listEmployees,listDoctors,getPendingRefund,getPendingDispense,getDrugInventory,listDepartments1}};
 export type MarkReportReadResult = AxiosResponse<void>
 export type CancelRegisterResult = AxiosResponse<void>
 export type BookInspectionRequestResult = AxiosResponse<void>
 export type BookCheckRequestResult = AxiosResponse<void>
+export type ReceiveDiagnosisResult = AxiosResponse<void>
 export type ConfirmDiagnosisResult = AxiosResponse<void>
 export type SwitchPatientResult = AxiosResponse<string>
 export type SendCodeResult = AxiosResponse<void>
@@ -816,8 +860,12 @@ export type GetPendingCheckRequestsResult = AxiosResponse<PendingCheckRequestVO[
 export type GetInventoryResult = AxiosResponse<PageResultDrugInventoryVO>
 export type GetStatisticsResult = AxiosResponse<DoctorStatisticsVO>
 export type GetProfileResult = AxiosResponse<DoctorProfileVO>
+export type GetPrescriptionsByRegisterIdResult = AxiosResponse<Prescription[]>
 export type GetPatientsResult = AxiosResponse<PageResultDoctorPatientListVO>
 export type GetPatientDetailResult = AxiosResponse<DoctorPatientListVO>
+export type GetOrders1Result = AxiosResponse<CheckResultVO>
+export type GetMedicalRecordResult = AxiosResponse<MedicalRecordSaveRequestDTO>
+export type GetDiagnosisResult = AxiosResponse<DiagnosisConfirmRequestDTO>
 export type GetCheckResultsResult = AxiosResponse<CheckResultVO>
 export type GetCheckResultDetailResult = AxiosResponse<CheckResultDetailVO>
 export type GetResultsResult = AxiosResponse<PageResultScheduleResultVO>
