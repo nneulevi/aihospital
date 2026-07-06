@@ -1,13 +1,32 @@
 <!-- src/views/patient/LabBooking.vue -->
 <template>
   <div class="lab-booking-page">
-    <van-nav-bar title="检验预约" fixed placeholder left-arrow @click-left="() => router.back()" />
+    <van-nav-bar title="检验预约" fixed placeholder @click-left="() => router.back()">
+      <template #left>
+        <span style="font-size: 18px; color: #333;">←</span>
+      </template>
+    </van-nav-bar>
 
     <!-- 步骤引导 -->
     <van-steps :active="step - 1" class="steps">
-      <van-step>选择项目</van-step>
-      <van-step>确认信息</van-step>
-      <van-step>预约成功</van-step>
+      <van-step>
+        <template #icon>
+          <span class="step-num" :class="{ active: step >= 1 }">1</span>
+        </template>
+        选择项目
+      </van-step>
+      <van-step>
+        <template #icon>
+          <span class="step-num" :class="{ active: step >= 2 }">2</span>
+        </template>
+        确认信息
+      </van-step>
+      <van-step>
+        <template #icon>
+          <span class="step-num" :class="{ active: step >= 3 }">3</span>
+        </template>
+        预约成功
+      </van-step>
     </van-steps>
 
     <!-- ========== Step 1: 选择检验项目 ========== -->
@@ -539,7 +558,6 @@ onMounted(async () => {
 })
 </script>
 
-
 <style lang="scss" scoped>
 .lab-booking-page {
   min-height: 100vh;
@@ -547,9 +565,58 @@ onMounted(async () => {
   padding-bottom: 80px;
 }
 
+// ===== 步骤条适配（修复小屏幕显示问题） =====
 .steps {
   background: white;
-  padding: 12px 16px 0;
+  padding: 12px 4px 0;
+
+  :deep(.van-steps__items) {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  :deep(.van-step) {
+    flex: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  :deep(.van-step__title) {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  :deep(.van-step__line) {
+    left: 50%;
+    width: 100%;
+  }
+
+  :deep(.van-step--finish .van-step__circle),
+  :deep(.van-step--active .van-step__circle) {
+    background-color: #4CAF50;
+  }
+}
+
+// 自定义步骤编号
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c8c9cc;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.step-num.active {
+  background: #4CAF50;
 }
 
 .step-content {

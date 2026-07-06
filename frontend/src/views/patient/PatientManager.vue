@@ -1,10 +1,20 @@
 <!-- src/views/patient/PatientManager.vue -->
 <template>
   <div class="patient-manager">
-    <van-nav-bar title="就诊人管理" fixed placeholder left-arrow @click-left="() => router.back()" />
+    <van-nav-bar
+        title="就诊人管理"
+        fixed
+        placeholder
+        left-arrow
+        @click-left="() => router.back()"
+    />
 
     <!-- 就诊人列表 -->
     <div class="patient-list">
+      <van-empty
+          v-if="!loading && patients.length === 0"
+          description="暂无就诊人，请添加"
+      />
       <div
           v-for="patient in patients"
           :key="patient.id"
@@ -17,7 +27,7 @@
 
         <div class="patient-detail">
           <div class="patient-name">
-            {{ patient.realName }}
+            {{ patient.realName || '--' }}
             <span class="patient-relation" v-if="patient.relation">
               {{ patient.relation }}
             </span>
@@ -43,27 +53,10 @@
               type="primary"
               plain
               round
+              :loading="switchingId === patient.id"
               @click="setDefault(patient)"
           >
             设为默认
-          </van-button>
-          <van-button
-              size="small"
-              plain
-              round
-              @click="editPatient(patient)"
-          >
-            编辑
-          </van-button>
-          <van-button
-              size="small"
-              plain
-              type="danger"
-              round
-              :disabled="patient.isDefault"
-              @click="deletePatient(patient)"
-          >
-            删除
           </van-button>
         </div>
       </div>
@@ -76,15 +69,15 @@
       </van-button>
     </div>
 
-    <!-- ===== 添加/编辑就诊人弹窗 ===== -->
-    <van-action-sheet v-model:show="showAddSheet" :title="isEditMode ? '编辑就诊人' : '添加就诊人'" close-on-click-action>
+    <!-- ===== 添加就诊人弹窗 ===== -->
+    <van-action-sheet v-model:show="showAddSheet" title="添加就诊人" close-on-click-action>
       <div class="add-form">
         <van-form ref="formRef" @submit="submitPatient">
           <van-field
               v-model="formData.realName"
               name="realName"
               label="姓名"
-              placeholder="请输入真实姓名（必填）"
+              placeholder="请输入真实姓名"
               :rules="[{ required: true, message: '请填写姓名' }]"
           />
           <van-field
@@ -102,9 +95,9 @@
               label="身份证号"
               placeholder="请输入18位身份证号"
               :rules="[
-                { required: true, message: '请填写身份证号' },
-                { pattern: /^\d{17}[\dXx]$/, message: '身份证号格式不正确' }
-              ]"
+              { required: true, message: '请填写身份证号' },
+              { pattern: /^\d{17}[\dXx]$/, message: '身份证号格式不正确' }
+            ]"
               @input="onCardNumberChange"
           />
           <van-field
@@ -113,9 +106,9 @@
               label="手机号"
               placeholder="请输入手机号"
               :rules="[
-                { required: true, message: '请填写手机号' },
-                { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确' }
-              ]"
+              { required: true, message: '请填写手机号' },
+              { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确' }
+            ]"
           />
           <van-field
               v-model="formData.code"
@@ -152,13 +145,6 @@
           </van-field>
 
           <van-field
-              v-model="formData.relation"
-              name="relation"
-              label="关系"
-              placeholder="如：本人、父亲、母亲、子女"
-              clearable
-          />
-          <van-field
               v-model="formData.homeAddress"
               name="homeAddress"
               label="家庭地址"
@@ -168,22 +154,12 @@
           <div class="form-actions">
             <van-button plain round @click="closeForm">取消</van-button>
             <van-button type="primary" round native-type="submit" :loading="submitting">
-              {{ isEditMode ? '保存修改' : '确认添加' }}
+              确认添加
             </van-button>
           </div>
         </van-form>
       </div>
     </van-action-sheet>
-
-    <!-- ===== 删除确认弹窗 ===== -->
-    <van-dialog
-        v-model:show="showDeleteDialog"
-        title="确认删除"
-        message="确定要删除该就诊人吗？"
-        show-cancel-button
-        confirm-button-color="#E76F51"
-        @confirm="confirmDelete"
-    />
   </div>
 </template>
 
@@ -201,29 +177,23 @@ const userStore = useUserStore()
 
 // ============ 状态 ============
 const patients = ref<PatientListVO[]>([])
+const loading = ref(false)
 const formRef = ref<any>(null)
 const submitting = ref(false)
-const isEditMode = ref(false)
-const editingId = ref<number | null>(null)
+const switchingId = ref<number | null>(null)
 const countdown = ref(0)
 
 const showAddSheet = ref(false)
-const showDeleteDialog = ref(false)
 
-const deleteTarget = ref<PatientListVO | null>(null)
-
-const formData = ref<PatientAuthRegisterRequestDTO & { relation?: string }>({
+const formData = ref<PatientAuthRegisterRequestDTO>({
   realName: '',
   cardNumber: '',
   phone: '',
   code: '',
   gender: '',
   birthdate: '',
-  homeAddress: '',
-  relation: ''
+  homeAddress: ''
 })
-
-const relationOptions = ['本人', '父亲', '母亲', '儿子', '女儿', '配偶', '其他']
 
 // ✅ 最大日期（今天）
 const maxDateStr = computed(() => dayjs().format('YYYY-MM-DD'))
@@ -278,26 +248,29 @@ const onSendCode = async () => {
 }
 
 // ============ 加载就诊人列表 ============
-
 const loadPatients = async () => {
+  loading.value = true
   try {
-    const res = await list() as PatientListVO[]
-    console.log('📥 [PatientManager] 就诊人原始数据:', JSON.stringify(res, null, 2))
-    // ✅ 直接赋值，后端字段已完整
+    const res = (await list()) as PatientListVO[]
     patients.value = res || []
   } catch {
     showToast('加载就诊人列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
 // ============ 设为默认（切换就诊人） ============
-
 const setDefault = async (patient: PatientListVO) => {
+  if (!patient.id) return
+  switchingId.value = patient.id
+
   try {
-    await switchPatient({ patientId: patient.id! })
+    await switchPatient({ patientId: patient.id })
+
     // 更新 store 中的当前患者信息
     userStore.setCurrentPatient?.({
-      patientId: patient.id!,
+      patientId: patient.id,
       realName: patient.realName,
       caseNumber: patient.caseNumber,
       gender: patient.gender,
@@ -307,63 +280,18 @@ const setDefault = async (patient: PatientListVO) => {
       birthdate: patient.birthdate,
       homeAddress: patient.homeAddress
     })
+
     await loadPatients()
     showSuccessToast('已切换')
   } catch {
     showToast('操作失败')
-  }
-}
-
-// ============ 编辑 ============
-
-const editPatient = (patient: PatientListVO) => {
-  isEditMode.value = true
-  editingId.value = patient.id!
-  // ✅ 完整回填所有字段
-  formData.value = {
-    realName: patient.realName || '',
-    cardNumber: patient.cardNumber || '',
-    phone: patient.phone || '',
-    code: '',
-    gender: patient.gender || '',
-    birthdate: patient.birthdate || '',
-    homeAddress: patient.homeAddress || '',
-    relation: patient.relation || ''
-  }
-  showAddSheet.value = true
-}
-
-// ============ 删除 ============
-
-const deletePatient = (patient: PatientListVO) => {
-  if (patient.isDefault) {
-    showToast('不能删除默认就诊人')
-    return
-  }
-  deleteTarget.value = patient
-  showDeleteDialog.value = true
-}
-
-const confirmDelete = async () => {
-  if (!deleteTarget.value) return
-
-  try {
-    // TODO: 调用删除 API
-    patients.value = patients.value.filter(p => p.id !== deleteTarget.value?.id)
-    showSuccessToast('删除成功')
-  } catch {
-    showToast('删除失败')
   } finally {
-    deleteTarget.value = null
-    showDeleteDialog.value = false
+    switchingId.value = null
   }
 }
 
 // ============ 表单操作 ============
-
 const openAddForm = () => {
-  isEditMode.value = false
-  editingId.value = null
   countdown.value = 0
   formData.value = {
     realName: '',
@@ -372,8 +300,7 @@ const openAddForm = () => {
     code: '',
     gender: '',
     birthdate: '',
-    homeAddress: '',
-    relation: ''
+    homeAddress: ''
   }
   showAddSheet.value = true
 }
@@ -393,13 +320,27 @@ const onCardNumberChange = () => {
 }
 
 // ============ 提交表单 ============
-
 const submitPatient = async () => {
-  if (!formData.value.realName) { showToast('请填写姓名'); return }
-  if (!formData.value.gender) { showToast('请填写性别'); return }
-  if (!formData.value.cardNumber) { showToast('请填写身份证号'); return }
-  if (!formData.value.phone) { showToast('请填写手机号'); return }
-  if (!formData.value.code) { showToast('请填写验证码'); return }
+  if (!formData.value.realName) {
+    showToast('请填写姓名')
+    return
+  }
+  if (!formData.value.gender) {
+    showToast('请填写性别')
+    return
+  }
+  if (!formData.value.cardNumber) {
+    showToast('请填写身份证号')
+    return
+  }
+  if (!formData.value.phone) {
+    showToast('请填写手机号')
+    return
+  }
+  if (!formData.value.code) {
+    showToast('请填写验证码')
+    return
+  }
 
   submitting.value = true
 
@@ -410,14 +351,15 @@ const submitPatient = async () => {
       phone: formData.value.phone,
       code: formData.value.code,
       gender: formData.value.gender,
-      birthdate: formData.value.birthdate,
-      homeAddress: formData.value.homeAddress
+      birthdate: formData.value.birthdate || undefined,
+      homeAddress: formData.value.homeAddress || undefined
     }
 
     const res = await authRegister(params)
 
     await loadPatients()
 
+    // 如果返回了患者信息，更新 store
     if (res?.patientId) {
       userStore.setCurrentPatient?.({
         patientId: res.patientId,
@@ -442,8 +384,6 @@ const submitPatient = async () => {
 
 const closeForm = () => {
   showAddSheet.value = false
-  isEditMode.value = false
-  editingId.value = null
   countdown.value = 0
   formData.value = {
     realName: '',
@@ -452,13 +392,11 @@ const closeForm = () => {
     code: '',
     gender: '',
     birthdate: '',
-    homeAddress: '',
-    relation: ''
+    homeAddress: ''
   }
 }
 
 // ============ 生命周期 ============
-
 onMounted(() => {
   loadPatients()
 })
@@ -467,7 +405,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .patient-manager {
   min-height: 100vh;
-  background: #F5F7FA;
+  background: #f5f7fa;
   padding-bottom: 80px;
 }
 
@@ -480,11 +418,11 @@ onMounted(() => {
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 10px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   transition: all 0.2s;
 
   &.active {
-    border-left: 4px solid #4CAF50;
+    border-left: 4px solid #4caf50;
   }
 
   .patient-detail {
@@ -494,7 +432,7 @@ onMounted(() => {
     .patient-name {
       font-size: 18px;
       font-weight: 600;
-      color: #1A1A2E;
+      color: #1a1a2e;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -502,8 +440,8 @@ onMounted(() => {
 
       .patient-relation {
         font-size: 12px;
-        color: #4CAF50;
-        background: #E8F5E9;
+        color: #4caf50;
+        background: #e8f5e9;
         padding: 0 10px;
         border-radius: 10px;
         font-weight: 400;
@@ -512,7 +450,7 @@ onMounted(() => {
 
     .patient-meta {
       font-size: 14px;
-      color: #6B6B7E;
+      color: #6b6b7e;
       display: flex;
       gap: 16px;
       margin: 6px 0;
@@ -521,7 +459,7 @@ onMounted(() => {
     .patient-phone,
     .patient-id-card {
       font-size: 14px;
-      color: #6B6B7E;
+      color: #6b6b7e;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -534,7 +472,7 @@ onMounted(() => {
     gap: 8px;
     flex-wrap: wrap;
     padding-top: 12px;
-    border-top: 1px solid #F0F0F0;
+    border-top: 1px solid #f0f0f0;
 
     .van-button {
       font-size: 12px;
@@ -546,9 +484,10 @@ onMounted(() => {
 
 .add-btn-wrapper {
   padding: 0 16px 20px;
+
   .van-button--primary {
-    background: #4CAF50;
-    border-color: #4CAF50;
+    background: #4caf50;
+    border-color: #4caf50;
     height: 48px;
   }
 }
@@ -567,9 +506,10 @@ onMounted(() => {
     flex: 1;
     height: 44px;
   }
+
   .van-button--primary {
-    background: #4CAF50;
-    border-color: #4CAF50;
+    background: #4caf50;
+    border-color: #4caf50;
   }
 }
 
@@ -577,7 +517,7 @@ onMounted(() => {
   border: none;
   outline: none;
   font-size: 14px;
-  color: #1A1A2E;
+  color: #1a1a2e;
   background: transparent;
   width: 100%;
   padding: 4px 0;

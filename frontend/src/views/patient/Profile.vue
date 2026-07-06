@@ -36,12 +36,12 @@
         <van-icon name="arrow" class="menu-arrow" />
       </div>
       <div class="menu-item" @click="goToReports">
-        <van-icon name="file-o" size="22" color="#E91E63" />
+        <van-icon name="description-o" size="22" color="#E91E63" />
         <span class="menu-label">我的报告</span>
         <van-icon name="arrow" class="menu-arrow" />
       </div>
       <div class="menu-item" @click="goToPrescriptions">
-        <van-icon name="bill-o" size="22" color="#9C27B0" />
+        <van-icon name="shop-o" size="22" color="#9C27B0" />
         <span class="menu-label">我的处方</span>
         <van-icon name="arrow" class="menu-arrow" />
       </div>

@@ -67,32 +67,185 @@ const categories = [
 ]
 
 const allServices = [
-  // 挂号预约
-  { key: 'appointment', label: '预约挂号', icon: 'calendar-o', desc: '在线预约专家号', category: 'appointment', bg: '#E8F5E9', color: '#4CAF50', path: '/patient/appointment' },
-  { key: 'checkin', label: '就诊报到', icon: 'location-o', desc: '到院报到', category: 'appointment', bg: '#E3F2FD', color: '#2196F3', path: '/patient/checkin' },
-  { key: 'revisit', label: '复诊预约', icon: 'replay', desc: '快速复诊预约', category: 'appointment', bg: '#F3E5F5', color: '#9C27B0', path: '/patient/revisit' },
+  // ===== 挂号预约 =====
+  {
+    key: 'appointment',
+    label: '预约挂号',
+    icon: 'calendar-o',
+    desc: '在线预约专家号',
+    category: 'appointment',
+    bg: '#E8F5E9',
+    color: '#4CAF50',
+    path: '/patient/appointment'
+  },
+  {
+    key: 'checkin',
+    label: '就诊报到',
+    icon: 'location-o',
+    desc: '到院报到',
+    category: 'appointment',
+    bg: '#E3F2FD',
+    color: '#2196F3',
+    path: '/patient/checkin'
+  },
+  {
+    key: 'revisit',
+    label: '复诊预约',
+    icon: 'replay',
+    desc: '快速复诊预约',
+    category: 'appointment',
+    bg: '#F3E5F5',
+    color: '#9C27B0',
+    path: '/patient/revisit'
+  },
 
-  // 检查检验
-  { key: 'lab', label: '检验预约', icon: 'medical-o', desc: '在线预约检验', category: 'exam', bg: '#E3F2FD', color: '#2196F3', path: '/patient/lab-booking' },
-  { key: 'exam', label: '检查预约', icon: 'scan-o', desc: '在线预约检查', category: 'exam', bg: '#E8F5E9', color: '#4CAF50', path: '/patient/exam-booking' },
-  { key: 'physical', label: '健康体检', icon: 'heartbeat-o', desc: '体检套餐预约', category: 'exam', bg: '#E0F7FA', color: '#00BCD4', path: '/patient/physical-exam' },
+  // ===== 检查检验 =====
+  {
+    key: 'lab',
+    label: '检验预约',
+    icon: 'filter-o',
+    desc: '在线预约检验',
+    category: 'exam',
+    bg: '#E3F2FD',
+    color: '#2196F3',
+    path: '/patient/lab-booking'
+  },
+  {
+    key: 'exam',
+    label: '检查预约',
+    icon: 'scan',
+    desc: '在线预约检查',
+    category: 'exam',
+    bg: '#E8F5E9',
+    color: '#4CAF50',
+    path: '/patient/exam-booking'
+  },
+  {
+    key: 'physical',
+    label: '健康体检',
+    icon: 'medal',
+    desc: '体检套餐预约',
+    category: 'exam',
+    bg: '#E0F7FA',
+    color: '#00BCD4',
+    path: '/patient/physical-exam'
+  },
 
-  // 记录查询
-  { key: 'records', label: '病历查询', icon: 'file-o', desc: '查看就诊记录', category: 'records', bg: '#FCE4EC', color: '#E91E63', path: '/patient/records' },
-  { key: 'reports', label: '报告查询', icon: 'file-o', desc: '查看检验检查报告', category: 'records', bg: '#FFF3E0', color: '#FF9800', path: '/patient/reports' },
-  { key: 'prescriptions', label: '处方查询', icon: 'bill-o', desc: '查看处方明细', category: 'records', bg: '#FFF8E1', color: '#FFC107', path: '/patient/prescriptions' },
-  { key: 'orders', label: '缴费记录', icon: 'gold-coin-o', desc: '查看缴费记录', category: 'records', bg: '#FFF3E0', color: '#FF9800', path: '/patient/orders' },
+  // ===== 记录查询 =====
+  {
+    key: 'records',
+    label: '病历查询',
+    icon: 'records-o',
+    desc: '查看就诊记录',
+    category: 'records',
+    bg: '#FCE4EC',
+    color: '#E91E63',
+    path: '/patient/records'
+  },
+  {
+    key: 'reports',
+    label: '报告查询',
+    icon: 'description-o',
+    desc: '查看检验检查报告',
+    category: 'records',
+    bg: '#FFF3E0',
+    color: '#FF9800',
+    path: '/patient/reports'
+  },
+  {
+    key: 'prescriptions',
+    label: '处方查询',
+    icon: 'shop-o',
+    desc: '查看处方明细',
+    category: 'records',
+    bg: '#F3E5F5',
+    color: '#9C27B0',
+    path: '/patient/prescriptions'
+  },
+  {
+    key: 'orders',
+    label: '缴费记录',
+    icon: 'gold-coin-o',
+    desc: '查看缴费记录',
+    category: 'records',
+    bg: '#FFF3E0',
+    color: '#FF9800',
+    path: '/patient/orders'
+  },
 
-  // 在线服务
-  { key: 'consult', label: '在线咨询', icon: 'chat-o', desc: '在线问诊咨询', category: 'consult', bg: '#FFF3E0', color: '#FF9800', path: '/patient/consult' },
-  { key: 'ai', label: '智能问答', icon: 'chat-o', desc: 'AI智能问诊', category: 'consult', bg: '#E0F7FA', color: '#00BCD4', path: '/patient/ai' },
-  { key: 'doctor-schedule', label: '出诊查询', icon: 'doctor-o', desc: '查看医生排班', category: 'consult', bg: '#E8EAF6', color: '#3F51B5', path: '/patient/doctor-schedule' },
+  // ===== 在线服务 =====
+  {
+    key: 'consult',
+    label: '在线咨询',
+    icon: 'chat-o',
+    desc: '在线问诊咨询',
+    category: 'consult',
+    bg: '#FFF3E0',
+    color: '#FF9800',
+    path: '/patient/consult'
+  },
+  {
+    key: 'ai',
+    label: '智能问答',
+    icon: 'chat-o',
+    desc: 'AI智能问诊',
+    category: 'consult',
+    bg: '#E0F7FA',
+    color: '#00BCD4',
+    path: '/patient/ai'
+  },
+  {
+    key: 'doctor-schedule',
+    label: '出诊查询',
+    icon: 'user-circle-o',
+    desc: '查看医生排班',
+    category: 'consult',
+    bg: '#E8EAF6',
+    color: '#3F51B5',
+    path: '/patient/doctor-schedule'
+  },
 
-  // 个人设置
-  { key: 'patient-manager', label: '就诊人管理', icon: 'contact-o', desc: '管理就诊人信息', category: 'settings', bg: '#F5F5F5', color: '#6B6B7E', path: '/patient/patient-manager' },
-  { key: 'messages', label: '消息中心', icon: 'bell-o', desc: '查看系统消息', category: 'settings', bg: '#F5F5F5', color: '#6B6B7E', path: '/patient/messages' },
-  { key: 'guide', label: '就诊指南', icon: 'guide-o', desc: '就诊流程指引', category: 'settings', bg: '#E8EAF6', color: '#3F51B5', path: '' },
-  { key: 'customer-service', label: '联系客服', icon: 'service-o', desc: '在线客服支持', category: 'settings', bg: '#FBE9E7', color: '#FF5722', path: '' }
+  // ===== 个人设置 =====
+  {
+    key: 'patient-manager',
+    label: '就诊人管理',
+    icon: 'contact-o',
+    desc: '管理就诊人信息',
+    category: 'settings',
+    bg: '#F5F5F5',
+    color: '#6B6B7E',
+    path: '/patient/patient-manager'
+  },
+  {
+    key: 'messages',
+    label: '消息中心',
+    icon: 'more-o',
+    desc: '查看系统消息',
+    category: 'settings',
+    bg: '#F5F5F5',
+    color: '#6B6B7E',
+    path: '/patient/messages'
+  },
+  {
+    key: 'guide',
+    label: '就诊指南',
+    icon: 'guide-o',
+    desc: '就诊流程指引',
+    category: 'settings',
+    bg: '#E8EAF6',
+    color: '#3F51B5',
+    path: ''
+  },
+  {
+    key: 'customer-service',
+    label: '联系客服',
+    icon: 'service-o',
+    desc: '在线客服支持',
+    category: 'settings',
+    bg: '#FBE9E7',
+    color: '#FF5722',
+    path: ''
+  }
 ]
 
 const filteredServices = computed(() => {
@@ -117,9 +270,9 @@ const goToService = (service: any) => {
   if (service.path) {
     router.push(service.path)
   } else if (service.key === 'guide') {
-    showToast('就诊指南功能开发中')
+    router.push('/patient/guide')
   } else if (service.key === 'customer-service') {
-    showToast('联系客服：400-123-4567')
+    router.push('/patient/customer-service')
   } else {
     showToast('功能开发中')
   }
