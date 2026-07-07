@@ -36,9 +36,40 @@ function backendBase() {
   return value.replace(/\/$/, "");
 }
 
+function formatLogData(message, data) {
+  if (!data) return "";
+  if (message === "服务状态") {
+    const model = data.model || {};
+    const inference = data.inference || {};
+    return [
+      `服务：${data.status === "ok" ? "运行正常" : "需要检查"}`,
+      `模型：${model.available ? "已加载" : "未加载"}${data.model_name ? `（${data.model_name}）` : ""}`,
+      model.device ? `设备：${model.device}` : "",
+      data.model_version ? `版本：${data.model_version}` : "",
+      inference.threshold !== undefined ? `阈值：${inference.threshold}` : "",
+    ].filter(Boolean).join("\n");
+  }
+  if (message === "推理完成") {
+    return [
+      `状态：${data.status || "success"}`,
+      `伪影比例：${((Number(data.artifact_ratio || 0)) * 100).toFixed(3)}%`,
+      `严重程度：${data.severity || "-"}`,
+      `阳性体素：${Number(data.positive_voxels || 0).toLocaleString()}`,
+      data.elapsed_ms ? `耗时：${data.elapsed_ms} ms` : "",
+    ].filter(Boolean).join("\n");
+  }
+  if (message === "任务已创建") {
+    return `任务已进入队列：${data.task_id || "-"}\n状态：${data.status || "queued"}`;
+  }
+  if (data.error) {
+    return `原因：${String(data.error)}`;
+  }
+  return String(data.message || "操作已记录。");
+}
+
 function log(message, data) {
   const time = new Date().toLocaleTimeString();
-  const payload = data ? `\n${JSON.stringify(data, null, 2)}` : "";
+  const payload = data ? `\n${formatLogData(message, data)}` : "";
   logBox.textContent = `[${time}] ${message}${payload}\n\n${logBox.textContent}`;
 }
 

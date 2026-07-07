@@ -21,6 +21,12 @@
           AND s.noon = #{noon}
           AND s.schedule_status = 'NORMAL'
           AND e.delmark = TRUE
+          AND e.realname NOT LIKE '%E2E%'
+          AND e.realname NOT LIKE '%User Logic%'
+          AND e.realname NOT LIKE '%Extended%'
+          AND e.realname NOT LIKE '%项目验收%'
+          AND e.realname NOT LIKE '%验收%'
+          AND e.realname NOT LIKE '%测试%'
     </select>
 
     <select id="selectSources" resultType="com.neuedu.his.model.vo.ScheduleSourceVO">
@@ -38,6 +44,12 @@
                  LEFT JOIN employee e ON s.employee_id = e.id
                  LEFT JOIN department d ON s.deptment_id = d.id
         WHERE 1=1
+        AND COALESCE(e.realname, '') NOT LIKE '%E2E%'
+        AND COALESCE(e.realname, '') NOT LIKE '%User Logic%'
+        AND COALESCE(e.realname, '') NOT LIKE '%Extended%'
+        AND COALESCE(e.realname, '') NOT LIKE '%项目验收%'
+        AND COALESCE(e.realname, '') NOT LIKE '%验收%'
+        AND COALESCE(e.realname, '') NOT LIKE '%测试%'
         <if test="deptId != null">AND s.deptment_id = #{deptId}</if>
         <if test="doctorId != null">AND s.employee_id = #{doctorId}</if>
         <if test="startDate != null">AND s.schedule_date &gt;= #{startDate}</if>

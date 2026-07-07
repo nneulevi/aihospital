@@ -47,6 +47,18 @@
           <van-icon class="module-icon" name="bar-chart-o" size="28" />
           <div class="module-name">日结统计</div>
         </div>
+        <div class="module-item" @click="$router.push('/admin/staff/create')">
+          <van-icon class="module-icon" name="manager-o" size="28" />
+          <div class="module-name">人员新增</div>
+        </div>
+        <div class="module-item" @click="$router.push('/admin/stats/doctors')">
+          <van-icon class="module-icon" name="friends-o" size="28" />
+          <div class="module-name">医生统计</div>
+        </div>
+        <div class="module-item" @click="$router.push('/admin/stats/departments')">
+          <van-icon class="module-icon" name="cluster-o" size="28" />
+          <div class="module-name">科室统计</div>
+        </div>
       </div>
     </div>
 
@@ -118,15 +130,15 @@ onMounted(loadSummary)
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #F4A261;
+  color: #1677ff;
   margin-bottom: 4px;
   &.warning {
-    color: #E76F51;
+    color: #ff6b35;
   }
 }
 .stat-label {
   font-size: 13px;
-  color: #8B7A6B;
+  color: #64748b;
 }
 .module-section {
   margin-bottom: 16px;
@@ -134,10 +146,10 @@ onMounted(loadSummary)
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #5C4B3A;
+  color: #1f2937;
   margin-bottom: 12px;
   padding-left: 8px;
-  border-left: 3px solid #F4A261;
+  border-left: 3px solid #1677ff;
 }
 .module-grid {
   display: grid;
@@ -158,7 +170,7 @@ onMounted(loadSummary)
 }
 .module-name {
   font-size: 13px;
-  color: #5C4B3A;
+  color: #1f2937;
 }
 .notice-section {
   background: white;
@@ -178,13 +190,13 @@ onMounted(loadSummary)
 .notice-dot {
   width: 6px;
   height: 6px;
-  background: #F4A261;
+  background: #1677ff;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .notice-text {
   font-size: 13px;
-  color: #5C4B3A;
+  color: #1f2937;
 }
 </style>
 

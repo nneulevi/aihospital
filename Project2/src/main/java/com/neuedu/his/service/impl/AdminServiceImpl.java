@@ -15,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class AdminServiceImpl implements AdminService {
@@ -41,6 +43,99 @@ public class AdminServiceImpl implements AdminService {
     private FinanceRecordMapper financeRecordMapper;
     @Autowired
     private DrugStockRecordMapper drugStockRecordMapper;
+    @Autowired
+    private EmployeeMapper employeeMapper;
+    @Autowired
+    private DepartmentMapper departmentMapper;
+    @Autowired
+    private DashboardMapper dashboardMapper;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public StaffCreateResponseVO createStaff(StaffCreateRequestDTO request) {
+        Employee employee = new Employee();
+        employee.setDeptmentId(request.getDeptId());
+        employee.setRegistLevelId(request.getRegistLevelId());
+        employee.setRealname(request.getAccount());
+        employee.setRoleType(normalizeStaffRole(request.getRole()));
+        employee.setTitleLevel(request.getTitleLevel() == null || request.getTitleLevel().isBlank()
+                ? defaultTitleLevel(employee.getRoleType())
+                : request.getTitleLevel());
+        employee.setPasswordHash("123456");
+        employee.setPhone(request.getPhone());
+        employee.setDelmark(true);
+        employeeMapper.insert(employee);
+
+        StaffCreateResponseVO response = new StaffCreateResponseVO();
+        response.setStaffId(employee.getId());
+        response.setAccount(employee.getRealname());
+        response.setName(request.getName());
+        response.setRole(employee.getRoleType());
+        response.setStatus("ACTIVE");
+        return response;
+    }
+
+    @Override
+    public Integer createEmployee(StaffCreateRequestDTO request) {
+        return createStaff(request).getStaffId();
+    }
+
+    @Override
+    public List<EmployeeListItemVO> listEmployees(String roleType) {
+        List<EmployeeListItemVO> result = new ArrayList<>();
+        List<Employee> employees = roleType == null || roleType.isBlank()
+                ? employeeMapper.selectAllActive()
+                : employeeMapper.selectByRole(roleType, null);
+        for (Employee employee : employees) {
+            Department department = employee.getDeptmentId() == null ? null : departmentMapper.selectById(employee.getDeptmentId());
+            EmployeeListItemVO vo = new EmployeeListItemVO();
+            vo.setEmployeeId(employee.getId());
+            vo.setRealname(employee.getRealname());
+            vo.setRoleType(employee.getRoleType());
+            vo.setTitleLevel(employee.getTitleLevel());
+            vo.setPhone(employee.getPhone());
+            vo.setDeptId(employee.getDeptmentId());
+            vo.setDeptName(department == null ? "未分配科室" : department.getDeptName());
+            vo.setActive(Boolean.TRUE.equals(employee.getDelmark()));
+            vo.setCreateTime(employee.getCreateTime());
+            result.add(vo);
+        }
+        return result;
+    }
+
+    @Override
+    public List<PatientDepartmentVO> listDepartments() {
+        Map<String, PatientDepartmentVO> uniqueSchedulableDepartments = new LinkedHashMap<>();
+        for (Department department : departmentMapper.selectAll()) {
+            if (!isSchedulableDepartment(department)) {
+                continue;
+            }
+            if (employeeMapper.selectByRole("DOCTOR", department.getId()).isEmpty()) {
+                continue;
+            }
+            String deptName = normalizeText(department.getDeptName());
+            if (uniqueSchedulableDepartments.containsKey(deptName)) {
+                continue;
+            }
+            PatientDepartmentVO vo = new PatientDepartmentVO();
+            vo.setDeptId(department.getId());
+            vo.setDeptName(department.getDeptName());
+            vo.setDeptType(department.getDeptType());
+            vo.setDescription("CLINICAL".equals(department.getDeptType()) ? "门诊诊疗科室" : "医技或管理科室");
+            uniqueSchedulableDepartments.put(deptName, vo);
+        }
+        return new ArrayList<>(uniqueSchedulableDepartments.values());
+    }
+
+    @Override
+    public List<DoctorStatsVO> getDoctorStats() {
+        return dashboardMapper.selectDoctorStats();
+    }
+
+    @Override
+    public List<DepartmentStatsVO> getDepartmentStats() {
+        return dashboardMapper.selectDepartmentStats();
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -80,6 +175,22 @@ public class AdminServiceImpl implements AdminService {
             updateItemState(item, "REFUNDED");
             financeRecordMapper.insert(toFinanceRecord(request.getRegisterId(), item, "REFUND", "REFUND"));
         }
+    }
+
+    @Override
+    public List<ChargeItemVO> getPendingItems(Integer registerId) {
+        return collectChargeItems(registerId, "CREATED");
+    }
+
+    @Override
+    public List<ChargeItemVO> getPaidItems(Integer registerId) {
+        List<ChargeItemVO> result = new ArrayList<>();
+        result.addAll(collectChargeItems(registerId, "CHARGED"));
+        result.addAll(collectChargeItems(registerId, "PAID"));
+        result.addAll(collectChargeItems(registerId, "EXECUTING"));
+        result.addAll(collectChargeItems(registerId, "COMPLETED"));
+        result.addAll(collectChargeItems(registerId, "DISPENSED"));
+        return result;
     }
 
     @Override
@@ -189,6 +300,20 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    public List<PrescriptionWorkItemVO> getPendingDispense() {
+        return prescriptionMapper.selectByStatus("CHARGED").stream()
+                .map(this::toPrescriptionWorkItem)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public List<PrescriptionWorkItemVO> getPendingRefund() {
+        return prescriptionMapper.selectByStatus("DISPENSED").stream()
+                .map(this::toPrescriptionWorkItem)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
     public PageResult<DrugInventoryVO> getDrugInventory(DrugInventoryQueryDTO query) {
         PageHelper.startPage(query.getPageNum(), query.getPageSize());
         List<DrugInfo> list = drugInfoMapper.selectByCondition(query.getDrugName(), query.getDrugType(), query.getStockAlert());
@@ -198,9 +323,14 @@ public class AdminServiceImpl implements AdminService {
         for (DrugInfo d : list) {
             DrugInventoryVO vo = new DrugInventoryVO();
             vo.setDrugId(d.getId());
+            vo.setDrugCode(d.getDrugCode());
             vo.setDrugName(d.getDrugName());
-            vo.setStockNum(d.getStockNum());
-            vo.setAlert(d.getStockNum() < 10);
+            vo.setDrugFormat(d.getDrugFormat());
+            vo.setDrugUnit(d.getDrugUnit());
+            vo.setStockNum(d.getStockNum() == null ? 0 : d.getStockNum());
+            vo.setDrugPrice(d.getDrugPrice());
+            vo.setManufacturer(d.getManufacturer());
+            vo.setAlert((d.getStockNum() == null ? 0 : d.getStockNum()) < 10);
             voList.add(vo);
         }
 
@@ -338,6 +468,145 @@ public class AdminServiceImpl implements AdminService {
             return "PRESCRIPTION";
         }
         return value;
+    }
+
+    private String normalizeStaffRole(String role) {
+        if ("DRUGSTORE".equals(role)) {
+            return "PHARMACIST";
+        }
+        return role;
+    }
+
+    private boolean isSchedulableDepartment(Department department) {
+        if (department == null || !"CLINICAL".equals(department.getDeptType())) {
+            return false;
+        }
+        String name = normalizeText(department.getDeptName());
+        return !name.isBlank()
+                && !name.contains("E2E")
+                && !name.contains("User Logic")
+                && !name.contains("Extended")
+                && !name.contains("项目验收")
+                && !name.contains("验收")
+                && !name.contains("测试");
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String defaultTitleLevel(String role) {
+        if ("DOCTOR".equals(role)) {
+            return "医师";
+        }
+        if ("MEDICAL_TECH".equals(role)) {
+            return "技师";
+        }
+        if ("PHARMACIST".equals(role)) {
+            return "药师";
+        }
+        if ("ADMIN".equals(role)) {
+            return "管理员";
+        }
+        return "工作人员";
+    }
+
+    private List<ChargeItemVO> collectChargeItems(Integer registerId, String expectedState) {
+        Register register = registerMapper.selectVisitDetail(registerId);
+        if (register == null) {
+            throw new BusinessException("挂号记录不存在");
+        }
+        List<ChargeItemVO> result = new ArrayList<>();
+        for (CheckRequest check : checkRequestMapper.selectByRegisterId(registerId)) {
+            if (expectedState.equals(check.getCheckState())) {
+                MedicalTechnology tech = medicalTechnologyMapper.selectById(check.getMedicalTechnologyId());
+                result.add(toChargeItemVO(register, check.getId(), "CHECK",
+                        tech == null ? "检查项目" : tech.getTechName(),
+                        tech == null ? BigDecimal.ZERO : tech.getTechPrice(),
+                        check.getCheckState(), check.getCreationTime()));
+            }
+        }
+        for (InspectionRequest inspection : inspectionRequestMapper.selectByRegisterId(registerId)) {
+            if (expectedState.equals(inspection.getInspectionState())) {
+                MedicalTechnology tech = medicalTechnologyMapper.selectById(inspection.getMedicalTechnologyId());
+                result.add(toChargeItemVO(register, inspection.getId(), "INSPECTION",
+                        tech == null ? "检验项目" : tech.getTechName(),
+                        tech == null ? BigDecimal.ZERO : tech.getTechPrice(),
+                        inspection.getInspectionState(), inspection.getCreationTime()));
+            }
+        }
+        for (DisposalRequest disposal : disposalRequestMapper.selectByRegisterId(registerId)) {
+            if (expectedState.equals(disposal.getDisposalState())) {
+                MedicalTechnology tech = medicalTechnologyMapper.selectById(disposal.getMedicalTechnologyId());
+                result.add(toChargeItemVO(register, disposal.getId(), "DISPOSAL",
+                        tech == null ? "处置项目" : tech.getTechName(),
+                        tech == null ? BigDecimal.ZERO : tech.getTechPrice(),
+                        disposal.getDisposalState(), disposal.getCreationTime()));
+            }
+        }
+        for (Prescription prescription : prescriptionMapper.selectByRegisterId(registerId)) {
+            if (expectedState.equals(prescription.getPrescriptionStatus())) {
+                result.add(toChargeItemVO(register, prescription.getId(), "PRESCRIPTION",
+                        "处方 " + nullSafe(prescription.getPrescriptionNo()),
+                        prescription.getTotalAmount(),
+                        prescription.getPrescriptionStatus(), prescription.getCreationTime()));
+            }
+        }
+        return result;
+    }
+
+    private ChargeItemVO toChargeItemVO(Register register, Integer itemId, String itemType, String itemName,
+                                        BigDecimal amount, String state, LocalDateTime creationTime) {
+        ChargeItemVO vo = new ChargeItemVO();
+        vo.setItemId(itemId);
+        vo.setItemType(itemType);
+        vo.setItemName(itemName);
+        vo.setRegisterId(register.getId());
+        vo.setPatientName(register.getRealName());
+        vo.setAmount(amount == null ? BigDecimal.ZERO : amount);
+        vo.setState(state);
+        vo.setStateName(formatItemState(state));
+        vo.setCreationTime(creationTime);
+        return vo;
+    }
+
+    private PrescriptionWorkItemVO toPrescriptionWorkItem(Prescription prescription) {
+        Register register = registerMapper.selectVisitDetail(prescription.getRegisterId());
+        PrescriptionWorkItemVO vo = new PrescriptionWorkItemVO();
+        vo.setPrescriptionId(prescription.getId());
+        vo.setRegisterId(prescription.getRegisterId());
+        vo.setPrescriptionNo(prescription.getPrescriptionNo());
+        vo.setPatientName(register == null ? null : register.getRealName());
+        vo.setDoctorName(register == null ? null : register.getDoctorName());
+        vo.setStatus(prescription.getPrescriptionStatus());
+        vo.setStatusName(formatItemState(prescription.getPrescriptionStatus()));
+        vo.setTotalAmount(prescription.getTotalAmount());
+        vo.setCreationTime(prescription.getCreationTime());
+        vo.setDispenseTime(prescription.getDispenseTime());
+        List<String> names = new ArrayList<>();
+        for (PrescriptionDetail detail : prescriptionDetailMapper.selectByPrescriptionId(prescription.getId())) {
+            DrugInfo drug = drugInfoMapper.selectById(detail.getDrugId());
+            if (drug != null && drug.getDrugName() != null) {
+                names.add(drug.getDrugName());
+            }
+        }
+        vo.setDrugSummary(names.isEmpty() ? "处方明细待确认" : String.join("、", names));
+        return vo;
+    }
+
+    private String formatItemState(String state) {
+        if ("CREATED".equals(state)) return "待缴费";
+        if ("CHARGED".equals(state) || "PAID".equals(state)) return "已缴费";
+        if ("EXECUTING".equals(state)) return "执行中";
+        if ("COMPLETED".equals(state)) return "已完成";
+        if ("DISPENSED".equals(state)) return "已发药";
+        if ("REFUNDED".equals(state)) return "已退费";
+        if ("CANCELLED".equals(state)) return "已取消";
+        return state;
+    }
+
+    private String nullSafe(String value) {
+        return value == null ? "" : value;
     }
 
     private FinanceRecord toFinanceRecord(Integer registerId, ChargeItem item, String chargeMethod, String recordType) {

@@ -403,3 +403,60 @@ python scripts/smoke_test_headct_platform.py -> success
 ### 当前结论
 
 Project2 独立业务、头部 CT AI 链路、医技执行闭环、药房库存闭环、科室医生号源管理均已有后端接口和前端入口。AI 影像识别仍定位为医生审核前辅助能力，不等同于临床生产级自动诊断。
+
+## 2026-07-01 用户视角综合复查
+
+### 新增复查脚本
+
+```text
+scripts/e2e_user_logic_acceptance.py
+```
+
+该脚本按真实用户逻辑串联患者、医生、管理员、医技、药房和头部 CT AI 报告链路，不只检查接口返回成功，还检查同一业务数据在不同页面/角色间的一致性。
+
+### 本次发现的问题
+
+#### 药房退药未生成财务退费流水
+
+问题表现：
+
+- 药房端退药后，药品库存恢复，处方状态变为已退。
+- 患者端订单可见 `REFUNDED`。
+- 但管理员端财务流水缺少 `REFUND` 记录，日结退费统计无法完整反映药房退药。
+
+修复：
+
+- `DrugstoreServiceImpl.refund()` 在处方退药成功后写入 `finance_record`。
+- 新增流水内容：
+  - `recordType=REFUND`
+  - `itemType=PRESCRIPTION`
+  - `chargeMethod=REFUND`
+  - `operatorName=药房退药`
+
+### 本次验收结果
+
+```text
+Project2 compile -> passed
+python -X utf8 scripts\e2e_user_logic_acceptance.py -> success
+npm run type-check -> passed
+npm run test:visual -> 24 passed, 4 skipped
+UTF-8 scan -> FOUND 0
+```
+
+关键一致性证据：
+
+```text
+patient_summary_after_unpaid_created.unpaidOrderCount=4
+patient_summary_after_tech_charge.unpaidOrderCount=1
+patient_summary_after_all_charge.unpaidOrderCount=0
+stock_record_types=[CHECK, DISPENSE, IN, REFUND]
+finance_record_types=[CHARGE, REFUND]
+final_patient_record.visitState=DIAGNOSIS_DONE
+headct.persisted_ai.ai_image_analysis=1
+headct.persisted_ai.ai_generated_report=1
+```
+
+结论：
+
+- 药房退药与财务退费流水已对齐。
+- 患者端统计、订单列表、医生端状态、医技结果、药房库存、管理员财务、头部 CT 报告归档链路已通过用户视角综合验收。

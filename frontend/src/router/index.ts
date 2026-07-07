@@ -3,7 +3,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { getToken, getUserRole } from '@/utils/auth'
 
 const roleHome: Record<string, string> = {
-    PATIENT: '/patient',
+    PATIENT: '/patient/home',
     DOCTOR: '/doctor',
     ADMIN: '/admin',
     MEDICAL_TECH: '/medical-tech',
@@ -63,14 +63,32 @@ const patientRoutes: RouteRecordRaw[] = [
         component: () => import('@/views/layouts/PatientLayout.vue'),
         meta: { role: 'PATIENT' },
         children: [
-            { path: '', redirect: '/patient/ai' },
+            { path: '', redirect: '/patient/home' },
+            { path: 'home', name: 'PatientHome', component: () => import('@/views/patient/Home.vue') },
             { path: 'ai', name: 'AIInquiry', component: () => import('@/views/patient/AIInquiry.vue') },
             { path: 'appointment', name: 'Appointment', component: () => import('@/views/patient/Appointment.vue') },
             { path: 'appointment/success', name: 'AppointmentSuccess', component: () => import('@/views/patient/AppointmentSuccess.vue') },
+            { path: 'appointment-success', redirect: '/patient/appointment/success' },
+            { path: 'appointments', name: 'AppointmentRecords', component: () => import('@/views/patient/AppointmentRecords.vue') },
             { path: 'records', name: 'Records', component: () => import('@/views/patient/Records.vue') },
             { path: 'record/:id', name: 'RecordDetail', component: () => import('@/views/patient/RecordDetail.vue') },
             { path: 'orders', name: 'Orders', component: () => import('@/views/patient/Orders.vue') },
             { path: 'profile', name: 'Profile', component: () => import('@/views/patient/Profile.vue') },
+            { path: 'patient-manager', name: 'PatientManager', component: () => import('@/views/patient/PatientManager.vue') },
+            { path: 'checkin', name: 'Checkin', component: () => import('@/views/patient/Checkin.vue') },
+            { path: 'queue', name: 'QueueQuery', component: () => import('@/views/patient/QueueQuery.vue') },
+            { path: 'reports', name: 'Reports', component: () => import('@/views/patient/Reports.vue') },
+            { path: 'prescriptions', name: 'Prescriptions', component: () => import('@/views/patient/Prescriptions.vue') },
+            { path: 'lab-booking', name: 'LabBooking', component: () => import('@/views/patient/LabBooking.vue') },
+            { path: 'exam-booking', name: 'ExamBooking', component: () => import('@/views/patient/ExamBooking.vue') },
+            { path: 'messages', name: 'Messages', component: () => import('@/views/patient/Messages.vue') },
+            { path: 'consult', name: 'Consult', component: () => import('@/views/patient/Consult.vue') },
+            { path: 'doctor-schedule', name: 'PatientDoctorSchedule', component: () => import('@/views/patient/DoctorSchedule.vue') },
+            { path: 'revisit', name: 'Revisit', component: () => import('@/views/patient/Revisit.vue') },
+            { path: 'physical-exam', name: 'PhysicalExam', component: () => import('@/views/patient/PhysicalExam.vue') },
+            { path: 'services', name: 'Services', component: () => import('@/views/patient/Services.vue') },
+            { path: 'guide', name: 'Guide', component: () => import('@/views/patient/Guide.vue') },
+            { path: 'customer-service', name: 'CustomerService', component: () => import('@/views/patient/CustomerService.vue') },
         ]
     }
 ]
@@ -84,6 +102,12 @@ const doctorRoutes: RouteRecordRaw[] = [
         children: [
             { path: '', name: 'DoctorDashboard', component: () => import('@/views/doctor/DoctorDashboard.vue') },
             { path: 'visit', name: 'PatientVisit', component: () => import('@/views/doctor/PatientVisit.vue') },
+            { path: 'ai-diagnosis', name: 'DoctorAIDiagnosis', component: () => import('@/views/doctor/AIDiagnosis.vue') },
+            { path: 'ai-triage', name: 'DoctorAITriage', component: () => import('@/views/doctor/AITriage.vue') },
+            { path: 'schedule', name: 'DoctorSchedule', component: () => import('@/views/doctor/DoctorSchedule.vue') },
+            { path: 'headct-reports', name: 'DoctorHeadCtReportWorkbench', component: () => import('@/views/doctor/HeadCtReportWorkbench.vue') },
+            { path: 'result/:id', name: 'DoctorResultDetail', component: () => import('@/views/doctor/ResultDetail.vue') },
+            { path: 'result-detail/:type/:id', redirect: to => ({ path: `/doctor/result/${to.params.id}` }) },
             { path: 'profile', name: 'DoctorProfile', component: () => import('@/views/doctor/DoctorProfile.vue') },
         ]
     }
@@ -101,6 +125,11 @@ const adminRoutes: RouteRecordRaw[] = [
             { path: 'schedule-sources', name: 'ScheduleSourceManage', component: () => import('@/views/admin/ScheduleSourceManage.vue') },
             { path: 'finance', name: 'FinanceManage', component: () => import('@/views/admin/FinanceManage.vue') },
             { path: 'drug', name: 'DrugManage', component: () => import('@/views/admin/DrugManage.vue') },
+            { path: 'staff/create', name: 'AdminStaffCreate', component: () => import('@/views/admin/StaffCreate.vue') },
+            { path: 'stats/doctors', name: 'AdminDoctorStats', component: () => import('@/views/admin/DoctorStats.vue') },
+            { path: 'stats/departments', name: 'AdminDeptStats', component: () => import('@/views/admin/DeptStats.vue') },
+            { path: 'doctor-stats', redirect: '/admin/stats/doctors' },
+            { path: 'dept-stats', redirect: '/admin/stats/departments' },
         ]
     }
 ]
@@ -147,11 +176,11 @@ const drugstoreRoutes: RouteRecordRaw[] = [
 
 const fallbackRoute: RouteRecordRaw = {
     path: '/:pathMatch(.*)*',
-    redirect: '/patient'
+    redirect: '/patient/home'
 }
 
 const routes: RouteRecordRaw[] = [
-    { path: '/', redirect: '/patient' },
+    { path: '/', redirect: '/patient/home' },
     ...independentRoutes,
     ...patientRoutes,
     ...miniPatientRoutes,

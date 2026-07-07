@@ -34,8 +34,9 @@ HeadCTLesionDetection/models/hemorrhage/external_weights/best_resnet50.pth
 当前行为：
 
 - 若上述成熟公开权重存在，`scripts/start_headct_platform.ps1` 会优先设置 `HEMORRHAGE_MODEL_PROVIDER=vinbigdata`。
-- 若成熟权重加载或推理失败，服务会使用 `HEMORRHAGE_FALLBACK_CHECKPOINT` 跑通链路，并在结果中写入 `checkpoint_fallback_used=true`。
+- 当前启动脚本设置 `HEMORRHAGE_ALLOW_INFERENCE_FALLBACK=false`，真实模型加载或推理失败时不再静默退回 smoke/local fallback。
 - 若成熟权重不存在，优先使用本地训练 `best.pt`；若仍不存在，使用 `smoke_best.pt`。
+- 对 VinBigData raw `best_resnet50.pth`，当前已启用多 offset + flip TTA，结果中通过 `inference_strategy` 暴露实际推理策略。
 
 ## 分割模型
 
@@ -229,12 +230,12 @@ mature_mar_task_type=metal_artifact_reduction
   -> Report Assist: 将伪影影响与 MAR 使用状态写入 warnings
 ```
 
-当前实际状态：
+当时的历史状态（2026-06-26，已被 2026-07-07 补强覆盖）：
 
 ```text
 artifact_segmentation: local_project_trained U-Net3D，参与当前伪影 mask 推理
-artifact_reduction: InDuDoNet checkpoint 已登记，correction_status=checkpoint_registered_not_executable
-lesion_input_policy: used_input=original_ct, corrected_ct_used=false
+artifact_reduction: InDuDoNet checkpoint 仅登记，尚未输出 corrected_ct
+lesion_input_policy: 使用原始 CT
 ```
 
 说明：
@@ -269,13 +270,13 @@ smoke_test_headct_platform.py -> success
 e2e_project2_real_business.py -> success
 ```
 
-真实 Orchestrator 结果中已出现：
+当时真实 Orchestrator 结果中已出现：
 
 ```text
 quality_control.artifact_reduction.model_name=InDuDoNet
-quality_control.artifact_reduction.correction_status=checkpoint_registered_not_executable
-quality_control.lesion_input_policy.used_input=original_ct
-quality_control.lesion_input_policy.corrected_ct_used=false
+quality_control.artifact_reduction.correction_status=仅登记未执行
+quality_control.lesion_input_policy.used_input=original_ct（历史状态）
+quality_control.lesion_input_policy.corrected_ct_used=false（历史状态）
 ```
 
 这表示当前链路已经能够同时携带伪影分割结果和 MAR checkpoint 状态；但由于 InDuDoNet 可执行校正引擎尚未接入，病灶识别仍显式使用原始 CT。
@@ -314,7 +315,7 @@ checkpoint_framework=state_dict
 checkpoint_fallback_used=false
 ```
 
-### InDuDoNet MAR checkpoint
+### InDuDoNet MAR checkpoint（历史状态，已被 2026-07-07 补强覆盖）
 
 `InDuDoNet_latest.pt` 仍只能视为“成熟 MAR checkpoint 已登记”，不能视为“已经执行图像校正”。原因是官方 InDuDoNet 推理需要：
 
@@ -323,13 +324,13 @@ checkpoint_fallback_used=false
 - `ma_sinogram`、`LI_sinogram`、`metal_trace`、`LI_CT` 等投影域和线性插值输入；
 - 输出 corrected CT 后再写入业务链路。
 
-当前 Filter 返回：
+当时 Filter 返回：
 
 ```text
 artifact_reduction.registered=true
-artifact_reduction.executable=false
-artifact_reduction.correction_status=checkpoint_registered_not_executable
-artifact_reduction.use_for_lesion_input=false
+artifact_reduction.executable 为否（历史状态）
+artifact_reduction.correction_status=仅登记未执行（历史状态）
+artifact_reduction.use_for_lesion_input 为否（历史状态）
 ```
 
 这属于真实业务安全行为：平台知道存在成熟 MAR 权重，但不会伪造 corrected CT，也不会把原始 CT 复制成“校正后影像”。在可执行 MAR 引擎补齐前，LesionDetection 明确使用：
@@ -338,3 +339,94 @@ artifact_reduction.use_for_lesion_input=false
 input_policy.used_input=original_ct
 input_policy.corrected_ct_used=false
 ```
+
+## 2026-07-01 VinBigData 推理能力增强与 CQ500 子集验证
+
+本次对成熟公开 VinBigData raw checkpoint 做了推理侧增强：
+
+```text
+HeadCTLesionDetection/models/hemorrhage/external_weights/best_resnet50.pth
+```
+
+新增能力：
+
+- 多 offset slice sampling：`-0.25,0,0.25`
+- horizontal flip TTA：启用
+- 每例 6 个推理变体取平均概率
+- 结果字段新增 `inference_strategy`
+- Lesion 服务 health 暴露 `sampling_offsets` 与 `tta_flip`
+- 启动脚本默认启用该策略，且继续禁止真实权重失败后静默 fallback。
+
+真实 CQ500 子集验证：
+
+```text
+数据目录：D:\Data
+实际病例目录示例：D:\Data\CQ500CT200 CQ500CT200
+转换脚本：HeadCTLesionDetection/models/hemorrhage/prepare_cq500ct200.py
+manifest：HeadCTLesionDetection/datasets/hemorrhage/cq500ct200_manifest.csv
+推理结果：HeadCTLesionDetection/datasets/hemorrhage/cq500ct200_vinbigdata_tta_predictions.jsonl
+```
+
+执行结果：
+
+```text
+CQ500 子集 5 例 DICOM -> NIfTI 转换成功
+序列选择规则：非增强 Plain 常规平扫优先，Thin Plain 作为次选
+5 例均使用 VinBigData state_dict 完成 CUDA 推理
+inference_strategy.variant_count=6
+checkpoint_framework=state_dict
+```
+
+当前限制：
+
+- `D:\Data` 下未发现 CQ500 `reads.csv` 或其他标签表。
+- 仓库内目前只有 CQ500 字段释义文档，没有真实标签 CSV。
+- 因此本次能够证明“成熟权重真实执行 + 真实 DICOM 子集推理 + TTA 增强启用”，但不能证明 AUC/Sensitivity/F1 等监督指标提升。
+- 后续一旦补充标签表，可直接使用 `evaluate.py --provider vinbigdata --calibrate-threshold` 做阈值校准和指标验收。
+
+## 2026-07-07 ICHSeg/nnU-Net 与 MAR 真实链路补强
+
+### ICHSeg/nnU-Net 病灶分割
+
+已接入成熟公开 ICHSeg nnU-Net checkpoint，并由 `HeadCTLesionDetection` 服务在真实任务中执行网络前向，输出病灶 mask 与三向叠加预览：
+
+```text
+checkpoint=HeadCTLesionDetection/models/hemorrhage/external_weights/ichseg_rank_nnunet/fold_0/checkpoint_final.pth
+provider=ichseg_rank_nnunet
+runtime_status=executed_direct_network_forward
+checkpoint_fallback_used=false
+mask_url=/api/head-ct-lesion/files/{task_id}/lesion_mask.nii.gz
+preview_urls=axial/coronal/sagittal
+```
+
+与 VinBigData 分类模型合并时，若 ICHSeg 分割为阳性，最终主结论以分割 mask 证据为主，分类模型概率作为辅助参考，避免“分类低置信阴性”和“分割阳性”在报告中互相冲突。
+
+### 金属伪影 MAR
+
+当前链路已登记 `InDuDoNet_latest.pt` 作为成熟 MAR checkpoint；由于标准 NIfTI 上传不包含官方 InDuDoNet 投影域输入，服务不宣称执行官方投影域 InDuDoNet，而是执行透明的 mask 引导图像域 MAR 校正：
+
+```text
+artifact_reduction.registered=true
+artifact_reduction.executable=true
+artifact_reduction.execution_engine=sitk_mask_guided_gaussian_replacement
+artifact_reduction.official_indudonet_executed=false
+artifact_reduction.correction_status=executed
+artifact_reduction.corrected_ct_url=/api/ct-artifact/files/{task_id}/corrected_ct.nii.gz
+artifact_reduction.use_for_lesion_input=true
+lesion_input_policy.used_input=corrected_ct
+```
+
+### 真实用户链路证据
+
+```text
+cd frontend
+npx playwright test tests/visual/headct-real-user-workflow.spec.ts --project=desktop-chrome
+```
+
+结果：
+
+```text
+1 passed
+```
+
+该测试从医生端正常入口进入头部 CT 工作台，上传真实 NIfTI 测试影像，完成伪影分割、MAR 校正、VinBigData 分类、ICHSeg 分割、报告生成、医生审核发布和 EMR 归档校验。

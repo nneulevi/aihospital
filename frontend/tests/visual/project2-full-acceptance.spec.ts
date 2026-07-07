@@ -135,14 +135,31 @@ test.describe('Project2 full screenshot-level acceptance', () => {
     const user = await loginPatient(page)
     const recordId = await firstRecordIdForPatient(page, user.patientId)
     const routes = [
+      '/patient/home',
       '/patient/ai',
       '/patient/appointment',
-      '/patient/appointment/success?registerId=1',
+      '/patient/appointments',
       '/patient/records',
+      '/patient/checkin',
+      '/patient/queue',
+      '/patient/reports',
+      '/patient/prescriptions',
+      '/patient/lab-booking',
+      '/patient/exam-booking',
+      '/patient/messages',
+      '/patient/consult',
+      '/patient/doctor-schedule',
+      '/patient/revisit',
+      '/patient/physical-exam',
+      '/patient/services',
+      '/patient/guide',
+      '/patient/customer-service',
+      '/patient/patient-manager',
       '/patient/orders',
       '/patient/profile',
     ]
     if (recordId) {
+      routes.splice(3, 0, `/patient/appointment/success?registerId=${recordId}`)
       routes.splice(4, 0, `/patient/record/${recordId}`)
     }
     for (const route of routes) {
@@ -154,7 +171,7 @@ test.describe('Project2 full screenshot-level acceptance', () => {
     const issues = attachRuntimeGuards(page)
     const user = await loginStaff(page, 'DOCTOR', 'doctor')
     const registerId = await firstRegisterIdForDoctor(page, user.doctorId)
-    const routes = ['/doctor', '/doctor/profile']
+    const routes = ['/doctor', '/doctor/ai-diagnosis', '/doctor/ai-triage', '/doctor/schedule', '/doctor/result/1', '/doctor/profile']
     if (registerId) {
       routes.push(`/doctor/visit?registerId=${registerId}&name=VisualPatient`)
     }
@@ -166,7 +183,16 @@ test.describe('Project2 full screenshot-level acceptance', () => {
   test('admin routes are reachable, clean, and visually captured', async ({ page }) => {
     const issues = attachRuntimeGuards(page)
     await loginStaff(page, 'ADMIN', 'admin')
-    const routes = ['/admin', '/admin/schedule', '/admin/schedule-sources', '/admin/finance', '/admin/drug']
+    const routes = [
+      '/admin',
+      '/admin/schedule',
+      '/admin/schedule-sources',
+      '/admin/finance',
+      '/admin/drug',
+      '/admin/staff/create',
+      '/admin/stats/doctors',
+      '/admin/stats/departments',
+    ]
     for (const route of routes) {
       await visitAndAccept(page, route, new RegExp(route.replace(/\//g, '\\/')), issues)
     }

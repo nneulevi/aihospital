@@ -118,9 +118,9 @@ python Filter/model/predict_unet3d.py --checkpoint Filter/model/runs/metal_unet3
 ```text
 原始 CT
   -> U-Net3D 金属伪影分割，输出 artifact mask / severity / affected_slices
-  -> InDuDoNet MAR 通道，登记成熟公开 checkpoint 与校正状态
+  -> MAR 通道，登记 InDuDoNet 成熟公开 checkpoint，并执行 mask 引导图像域校正
   -> Orchestrator 汇总 quality_context
-  -> LesionDetection 根据 input_policy 选择原始 CT 或校正 CT
+  -> LesionDetection 根据 input_policy 使用校正 CT
   -> RAG/LLM 报告辅助说明伪影影响与医生复核要求
 ```
 
@@ -133,10 +133,10 @@ Filter/model/external_weights/metal_artifact_reduction/InDuDoNet_latest.pt
 重要边界：
 
 - `InDuDoNet_latest.pt` 是金属伪影减少/重建权重，不是金属伪影 mask 分割权重。
-- 当前服务会在结果中返回 `artifact_reduction` 块，说明 InDuDoNet checkpoint 是否存在。
-- 在没有完整接入 InDuDoNet 上游网络源码、投影域预处理和图像重建后处理前，`correction_status` 为 `checkpoint_registered_not_executable`。
-- 当 `correction_status` 不是 `corrected` 时，后续病灶识别的 `input_policy.used_input` 为 `original_ct`，不会把原始 CT 复制成“校正 CT”。
-- 后续若补齐可执行 MAR 引擎，应输出 `corrected_ct.nii.gz`，并将 `artifact_reduction.corrected_ct_url` 与 `use_for_lesion_input=true` 写入结果。
+- 当前服务会在结果中返回 `artifact_reduction` 块，说明成熟 checkpoint 登记状态、实际执行引擎和校正 CT 地址。
+- 由于业务上传的是标准 NIfTI 体数据，而官方 InDuDoNet 投影域推理需要 `ma_sinogram`、`LI_sinogram`、`metal_trace` 等上游张量，当前生产链路采用透明的 `sitk_mask_guided_gaussian_replacement` 图像域校正。
+- 当金属伪影 mask 生成成功时，服务会输出 `corrected_ct.nii.gz`，并将 `artifact_reduction.corrected_ct_url` 与 `use_for_lesion_input=true` 写入结果；Orchestrator 后续病灶识别使用该校正 CT。
+- `official_indudonet_executed=false` 表示未伪装为官方投影域 InDuDoNet 前向；`registered_checkpoint_model_name=InDuDoNet` 表示成熟 MAR checkpoint 已作为模型来源记录。
 
 Filter 结果中新增的结构化字段：
 
@@ -149,19 +149,18 @@ Filter 结果中新增的结构化字段：
     "severity": "moderate"
   },
   "artifact_reduction": {
-    "enabled": false,
+    "enabled": true,
     "registered": true,
-    "executable": false,
-    "model_name": "InDuDoNet",
+    "executable": true,
+    "model_name": "mask_guided_image_domain_mar",
     "task_type": "metal_artifact_reduction",
-    "correction_status": "checkpoint_registered_not_executable",
-    "corrected_ct_url": null,
-    "use_for_lesion_input": false,
-    "execution_blockers": [
-      "缺少 InDuDoNet 官方 network/indudonet.py 可执行源码。",
-      "缺少 ODL/Astra 投影/反投影几何算子运行环境。",
-      "业务上传 NIfTI 未提供 InDuDoNet 所需 ma_sinogram、LI_sinogram、metal_trace、LI_CT 等输入。"
-    ]
+    "registered_checkpoint_model_name": "InDuDoNet",
+    "official_indudonet_executed": false,
+    "execution_engine": "sitk_mask_guided_gaussian_replacement",
+    "correction_status": "executed",
+    "corrected_ct_url": "/api/ct-artifact/files/{request_id}/corrected_ct.nii.gz",
+    "use_for_lesion_input": true,
+    "execution_blockers": []
   }
 }
 ```

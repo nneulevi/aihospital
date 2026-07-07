@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -105,8 +106,13 @@ public class ImageServiceRealImpl implements ImageService {
         response.setFindings(findings);
         response.setConclusion(conclusion);
         response.setConfidence(confidence);
+        response.setPositiveProbability(confidence);
+        response.setSubtypeProbabilities(extractSubtypeProbabilities(result));
+        response.setAnalysisReliability(extractAnalysisReliability(result));
+        response.setModelLimitations(extractModelLimitations(result));
         response.setAnnotations(extractAnnotations(result));
-        response.setAiImagingStatus(asMap(result.get("ai_imaging_status")));
+        response.setAiImagingStatus(extractAiImagingStatus(result));
+        response.setPreviewUrls(extractPreviewUrls(result));
         return response;
     }
 
@@ -172,8 +178,8 @@ public class ImageServiceRealImpl implements ImageService {
 
     private List<ImageAnalyzeResponseVO.Annotation> extractAnnotations(Map<String, Object> result) {
         List<ImageAnalyzeResponseVO.Annotation> annotations = new ArrayList<>();
-        Map<String, Object> lesionAnalysis = asMap(result.get("lesion_analysis"));
-        Object affectedSlices = lesionAnalysis.get("affected_slices");
+        Map<String, Object> firstLesion = firstLesionResult(result);
+        Object affectedSlices = firstLesion.get("affected_slices");
         if (affectedSlices instanceof List<?> slices) {
             for (Object slice : slices) {
                 ImageAnalyzeResponseVO.Annotation annotation = new ImageAnalyzeResponseVO.Annotation();
@@ -185,7 +191,136 @@ public class ImageServiceRealImpl implements ImageService {
                 annotations.add(annotation);
             }
         }
+        Object bbox = firstLesion.get("bbox");
+        if (bbox instanceof List<?> box && box.size() >= 6) {
+            ImageAnalyzeResponseVO.Annotation annotation = new ImageAnalyzeResponseVO.Annotation();
+            annotation.setX(toInteger(box.get(0), 0));
+            annotation.setY(toInteger(box.get(1), 0));
+            annotation.setWidth(Math.max(0, toInteger(box.get(3), 0) - annotation.getX()));
+            annotation.setHeight(Math.max(0, toInteger(box.get(4), 0) - annotation.getY()));
+            annotation.setLabel("lesion_bbox_zyx:" + box);
+            annotations.add(annotation);
+        }
         return annotations;
+    }
+
+    private Map<String, Object> firstLesionResult(Map<String, Object> result) {
+        Map<String, Object> lesionAnalysis = asMap(result.get("lesion_analysis"));
+        Object results = lesionAnalysis.get("results");
+        if (results instanceof List<?> list && !list.isEmpty()) {
+            Object first = list.get(0);
+            if (first instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> typed = (Map<String, Object>) map;
+                return typed;
+            }
+        }
+        return new LinkedHashMap<>();
+    }
+
+    private Map<String, Double> extractSubtypeProbabilities(Map<String, Object> result) {
+        Map<String, Object> firstLesion = firstLesionResult(result);
+        Map<String, Object> raw = asMap(firstLesion.get("subtype_probabilities"));
+        Map<String, Double> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : raw.entrySet()) {
+            Double score = toDouble(entry.getValue());
+            if (score != null) {
+                normalized.put(entry.getKey(), Math.max(0.0, Math.min(1.0, score)));
+            }
+        }
+        return normalized;
+    }
+
+    private String extractAnalysisReliability(Map<String, Object> result) {
+        Map<String, Object> firstLesion = firstLesionResult(result);
+        if (StringUtils.hasText(firstText(firstLesion.get("mask_url")))) {
+            return "已输出病灶分割 mask 与叠加预览，建议结合原始影像复核";
+        }
+        String lesionReliability = firstText(firstLesion.get("reliability"));
+        Map<String, Object> qualityControl = asMap(result.get("quality_control"));
+        String severity = firstText(qualityControl.get("severity"), "unknown");
+        if ("strongly_limited_by_artifact".equals(lesionReliability) || "severe".equals(severity)) {
+            return "受重度伪影影响，模型结果仅作弱参考";
+        }
+        if ("limited_by_artifact".equals(lesionReliability) || "moderate".equals(severity)) {
+            return "受伪影影响，需重点结合原始影像复核";
+        }
+        if ("slightly_limited_by_artifact".equals(lesionReliability) || "mild".equals(severity)) {
+            return "轻度受限，建议结合相邻层面复核";
+        }
+        return "链路完整，当前结果按分类模型输出解释";
+    }
+
+    private List<String> extractModelLimitations(Map<String, Object> result) {
+        List<String> limitations = new ArrayList<>();
+        Map<String, Object> aiStatus = asMap(result.get("ai_imaging_status"));
+        Object statusLimitations = aiStatus.get("limitations");
+        if (statusLimitations instanceof List<?> list) {
+            for (Object item : list) {
+                String text = Objects.toString(item, "");
+                if (StringUtils.hasText(text)) {
+                    limitations.add(text);
+                }
+            }
+        }
+        Map<String, Object> firstLesion = firstLesionResult(result);
+        Object warnings = firstLesion.get("warnings");
+        if (warnings instanceof List<?> list) {
+            for (Object item : list) {
+                String text = Objects.toString(item, "");
+                if (StringUtils.hasText(text)) {
+                    limitations.add(text);
+                }
+            }
+        }
+        Map<String, Object> lesionModel = asMap(aiStatus.get("lesion_model"));
+        if ("classification".equals(Objects.toString(lesionModel.get("task_type"), ""))) {
+            limitations.add("病灶模型当前为分类模型，不输出三维病灶边界。");
+        }
+        return new ArrayList<>(new LinkedHashSet<>(limitations));
+    }
+
+    private Map<String, String> extractPreviewUrls(Map<String, Object> result) {
+        Map<String, Object> qualityControl = asMap(result.get("quality_control"));
+        Map<String, Object> previewUrls = asMap(qualityControl.get("preview_urls"));
+        Map<String, Object> lesionPreviewUrls = asMap(firstLesionResult(result).get("preview_urls"));
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : previewUrls.entrySet()) {
+            String value = Objects.toString(entry.getValue(), null);
+            if (StringUtils.hasText(value)) {
+                normalized.put("quality_" + entry.getKey(), value);
+            }
+        }
+        for (Map.Entry<String, Object> entry : lesionPreviewUrls.entrySet()) {
+            String value = Objects.toString(entry.getValue(), null);
+            if (StringUtils.hasText(value)) {
+                normalized.put("lesion_" + entry.getKey(), value);
+            }
+        }
+        return normalized;
+    }
+
+    private Map<String, Object> extractAiImagingStatus(Map<String, Object> result) {
+        Map<String, Object> aiStatus = new LinkedHashMap<>(asMap(result.get("ai_imaging_status")));
+        Map<String, Object> lesionModel = new LinkedHashMap<>(asMap(aiStatus.get("lesion_model")));
+        Map<String, Object> firstLesion = firstLesionResult(result);
+        copyIfPresent(firstLesion, lesionModel, "mask_url");
+        copyIfPresent(firstLesion, lesionModel, "preview_urls");
+        copyIfPresent(firstLesion, lesionModel, "bbox");
+        copyIfPresent(firstLesion, lesionModel, "affected_slices");
+        copyIfPresent(firstLesion, lesionModel, "positive_voxel_count");
+        copyIfPresent(firstLesion, lesionModel, "positive_voxel_ratio");
+        copyIfPresent(firstLesion, lesionModel, "segmentation_runtime_status");
+        copyIfPresent(firstLesion, lesionModel, "segmentation_checkpoint_provenance");
+        aiStatus.put("lesion_model", lesionModel);
+        return aiStatus;
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        Object value = source.get(key);
+        if (value != null) {
+            target.put(key, value);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -203,6 +338,34 @@ public class ImageServiceRealImpl implements ImageService {
             }
         }
         return null;
+    }
+
+    private Double toDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value != null) {
+            try {
+                return Double.parseDouble(value.toString());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Integer toInteger(Object value, Integer fallback) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value != null) {
+            try {
+                return Integer.parseInt(value.toString());
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     private String firstText(Object... values) {

@@ -3,6 +3,7 @@ package com.neuedu.his.controller;
 import com.neuedu.his.exception.BusinessException;
 import com.neuedu.his.mapper.RegisterMapper;
 import com.neuedu.his.model.dto.*;
+import com.neuedu.his.model.entity.Prescription;
 import com.neuedu.his.model.entity.Register;
 import com.neuedu.his.model.vo.*;
 import com.neuedu.his.service.DoctorService;
@@ -10,6 +11,10 @@ import com.neuedu.his.service.DashboardService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.Period;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/doctor")
@@ -43,15 +48,24 @@ public class DoctorController {
 
         DoctorPatientListVO vo = new DoctorPatientListVO();
         vo.setRegisterId(register.getId());
-        vo.setCaseNumber(register.getVisitNo());
-        vo.setRegistrationTime(register.getVisitDate() != null ? register.getVisitDate().toString() : "");
+        vo.setCaseNumber(register.getCaseNumber() != null ? register.getCaseNumber() : register.getVisitNo());
+        vo.setPatientName(register.getRealName());
+        vo.setGender(register.getGender());
+        vo.setAge(register.getBirthdate() == null ? null : Period.between(register.getBirthdate(), LocalDate.now()).getYears());
+        vo.setRegistrationTime(register.getCreateTime() == null ? null : register.getCreateTime().toString());
         vo.setNoon(register.getNoon());
+        vo.setVisitState(register.getVisitState());
         return vo;
     }
 
     @PutMapping("/patients/{registerId}/receive")
     public void receivePatient(@PathVariable("registerId") Integer registerId) {
         doctorService.receivePatient(registerId);
+    }
+
+    @PutMapping("/patients/{registerId}/return-waiting")
+    public void returnToWaiting(@PathVariable("registerId") Integer registerId) {
+        doctorService.returnToWaiting(registerId);
     }
 
     @PostMapping("/medical-record")
@@ -84,8 +98,48 @@ public class DoctorController {
         doctorService.confirmDiagnosis(request);
     }
 
+    @PutMapping("/diagnosis/receive")
+    public void receiveDiagnosis(@RequestBody @Valid DiagnosisConfirmRequestDTO request) {
+        doctorService.confirmDiagnosis(request);
+    }
+
+    @GetMapping("/medical-record/{registerId}")
+    public MedicalRecordSaveRequestDTO getMedicalRecord(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getMedicalRecord(registerId);
+    }
+
+    @GetMapping("/orders/{registerId}")
+    public CheckResultVO getOrders(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getOrders(registerId);
+    }
+
+    @GetMapping("/prescriptions/{registerId}")
+    public List<Prescription> getPrescriptionsByRegisterId(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getPrescriptionsByRegisterId(registerId);
+    }
+
+    @GetMapping("/diagnosis/{registerId}")
+    public DiagnosisConfirmRequestDTO getDiagnosis(@PathVariable("registerId") Integer registerId) {
+        return doctorService.getDiagnosis(registerId);
+    }
+
     @GetMapping("/check-results/{registerId}")
     public CheckResultVO getCheckResults(@PathVariable("registerId") Integer registerId) {
         return doctorService.getCheckResults(registerId);
+    }
+
+    @GetMapping("/profile")
+    public DoctorProfileVO getProfile(@RequestParam("doctorId") Integer doctorId) {
+        return doctorService.getProfile(doctorId);
+    }
+
+    @GetMapping("/statistics")
+    public DoctorStatisticsVO getStatistics(@RequestParam("doctorId") Integer doctorId) {
+        return doctorService.getStatistics(doctorId);
+    }
+
+    @GetMapping("/check-result/{id}")
+    public CheckResultDetailVO getCheckResultDetail(@PathVariable("id") Integer itemId) {
+        return doctorService.getCheckResultDetail(itemId);
     }
 }

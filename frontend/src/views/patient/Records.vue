@@ -27,7 +27,7 @@
           </div>
         </div>
         <div v-if="recordList.length === 0 && !loading" class="empty-state">
-          <van-icon name="records-o" size="64" color="#C4B8A8" />
+          <van-icon name="records-o" size="64" color="#94A3B8" />
           <p>暂无病历记录</p>
         </div>
       </van-list>
@@ -132,8 +132,12 @@ const getStateType = (state?: string) => {
   switch (state) {
     case 'FINISHED': return 'success'
     case 'CONSULTING': return 'warning'
+    case 'DOCTOR_RECEIVED': return 'warning'
+    case 'ONGOING': return 'warning'
+    case 'DIAGNOSIS_DONE': return 'success'
     case 'REGISTERED': return 'primary'
     case 'CANCELLED': return 'danger'
+    case 'REFUNDED': return 'danger'
     default: return 'default'
   }
 }
@@ -141,8 +145,12 @@ const getStateText = (state?: string) => {
   switch (state) {
     case 'FINISHED': return '已完成'
     case 'CONSULTING': return '就诊中'
+    case 'DOCTOR_RECEIVED': return '就诊中'
+    case 'ONGOING': return '就诊中'
+    case 'DIAGNOSIS_DONE': return '已确诊'
     case 'REGISTERED': return '待就诊'
     case 'CANCELLED': return '已取消'
+    case 'REFUNDED': return '已退号'
     default: return ''
   }
 }
@@ -152,12 +160,12 @@ onMounted(() => loadRecords())
 </script>
 
 <style lang="scss" scoped>
-.records-page { min-height: 100vh; background: #FFF9F0; padding-bottom: 20px; }
-.record-card { background: white; margin: 12px; padding: 16px; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); cursor: pointer; }
+.records-page { min-height: 100vh; background: #F5F7FA; padding-bottom: 20px; }
+.record-card { background: white; margin: 12px; padding: 16px; border-radius: 8px; box-shadow: 0 1px 8px rgba(31,42,55,.06); cursor: pointer; }
 .record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.record-date { font-size: 14px; color: #8B7A6B; }
-.record-info { display: flex; gap: 20px; margin-bottom: 8px; font-size: 14px; color: #5C4B3A; }
-.record-diagnosis { font-size: 14px; .diagnosis-label { color: #8B7A6B; } .diagnosis-content { color: #5C4B3A; } }
+.record-date { font-size: 14px; color: #687789; }
+.record-info { display: flex; gap: 20px; margin-bottom: 8px; font-size: 14px; color: #1A1A2E; }
+.record-diagnosis { font-size: 14px; .diagnosis-label { color: #687789; } .diagnosis-content { color: #1A1A2E; } }
 .record-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
-.empty-state { text-align: center; padding: 60px 0; color: #C4B8A8; }
+.empty-state { text-align: center; padding: 60px 0; color: #94A3B8; }
 </style>

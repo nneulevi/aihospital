@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Iterator, Optional
 
+import httpx
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 SERVICE_DIR = Path(__file__).resolve().parent
 if str(SERVICE_DIR) not in sys.path:
@@ -46,6 +48,8 @@ try:
         ClinicalAssistError,
         generate_consultation_assist,
         generate_diagnosis_assist,
+        stream_consultation_assist,
+        stream_diagnosis_assist,
     )
     from .ai_imaging_readiness import build_ai_imaging_status
     from .dicom_ingest import (
@@ -98,6 +102,8 @@ except ImportError:  # pragma: no cover - direct script fallback.
         ClinicalAssistError,
         generate_consultation_assist,
         generate_diagnosis_assist,
+        stream_consultation_assist,
+        stream_diagnosis_assist,
     )
     from ai_imaging_readiness import build_ai_imaging_status  # type: ignore
     from dicom_ingest import (  # type: ignore
@@ -215,6 +221,32 @@ def build_quality_context(filter_result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def resolve_lesion_input_from_filter(
+    *,
+    original_input_path: Path,
+    original_filename: str,
+    content_type: Optional[str],
+    filter_result: dict[str, Any],
+    output_dir: Path,
+) -> tuple[Path, str, Optional[str]]:
+    artifact_reduction = dict(filter_result.get("artifact_reduction") or {})
+    corrected_url = artifact_reduction.get("corrected_ct_url")
+    if not (artifact_reduction.get("use_for_lesion_input") and corrected_url):
+        return original_input_path, original_filename, content_type
+
+    absolute_url = filter_client.absolute_url(str(corrected_url))
+    if absolute_url and absolute_url.startswith("http://filter.local"):
+        return original_input_path, original_filename, content_type
+    corrected_path = output_dir / "lesion_input_corrected_ct.nii.gz"
+    with httpx.Client(timeout=300.0) as client:
+        response = client.get(absolute_url)
+        response.raise_for_status()
+        corrected_path.write_bytes(response.content)
+    artifact_reduction["corrected_ct_url"] = absolute_url
+    filter_result["artifact_reduction"] = artifact_reduction
+    return corrected_path, corrected_path.name, "application/octet-stream"
+
+
 def should_skip_lesion_analysis(filter_result: dict[str, Any]) -> tuple[bool, str]:
     severity = str(filter_result.get("severity") or "unknown")
     if LESION_SKIP_ON_SEVERE_ARTIFACT and severity == "severe":
@@ -265,6 +297,7 @@ def run_lesion_analysis(
     content_type: Optional[str],
     case_context: dict[str, Any],
     filter_result: dict[str, Any],
+    output_dir: Path,
 ) -> tuple[dict[str, Any], Optional[dict[str, Any]]]:
     if not LESION_SERVICE_ENABLED:
         return build_lesion_analysis_without_service(), None
@@ -273,12 +306,19 @@ def run_lesion_analysis(
     if skip:
         return build_skipped_lesion_analysis(reason), None
 
+    lesion_input_path, lesion_filename, lesion_content_type = resolve_lesion_input_from_filter(
+        original_input_path=input_path,
+        original_filename=original_filename,
+        content_type=content_type,
+        filter_result=filter_result,
+        output_dir=output_dir,
+    )
     quality_context = build_quality_context(filter_result)
     try:
         lesion_task = lesion_client.create_task(
-            input_path,
-            original_filename,
-            content_type,
+            lesion_input_path,
+            lesion_filename,
+            lesion_content_type,
             case_context,
             quality_context,
             LESION_REQUESTED_TYPES,
@@ -291,13 +331,33 @@ def run_lesion_analysis(
     except TimeoutError as exc:
         raise LesionTimeoutError(str(exc)) from exc
     lesion_result = lesion_client.get_result(str(lesion_task.get("result_url")))
+    lesion_results = []
+    for item in lesion_result.get("results", []):
+        if not isinstance(item, dict):
+            continue
+        normalized = dict(item)
+        normalized["mask_url"] = lesion_client.absolute_url(normalized.get("mask_url"))
+        normalized["preview_urls"] = {
+            key: lesion_client.absolute_url(value) or value
+            for key, value in (normalized.get("preview_urls") or {}).items()
+        }
+        segmentation = normalized.get("segmentation")
+        if isinstance(segmentation, dict):
+            segmentation = dict(segmentation)
+            segmentation["mask_url"] = lesion_client.absolute_url(segmentation.get("mask_url"))
+            segmentation["preview_urls"] = {
+                key: lesion_client.absolute_url(value) or value
+                for key, value in (segmentation.get("preview_urls") or {}).items()
+            }
+            normalized["segmentation"] = segmentation
+        lesion_results.append(normalized)
     lesion_analysis = {
         "status": "success",
         "enabled": True,
         "task_id": lesion_task.get("task_id"),
         "result_url": lesion_client.absolute_url(lesion_task.get("result_url")),
         "input_policy": lesion_result.get("input_policy", {}),
-        "results": lesion_result.get("results", []),
+        "results": lesion_results,
         "summary": lesion_result.get("summary", {}),
         "warnings": lesion_result.get("warnings", []),
     }
@@ -381,20 +441,18 @@ def build_orchestrator_result(
     warnings.append("AI 结果仅供辅助参考，最终结论需医生审核。")
     created_at = task_record.get("created_at")
     finished_at = time.strftime("%Y-%m-%dT%H:%M:%S")
-    report_assist = combine_report_assist(qc_suggestion, lesion_analysis, warnings)
-    if RAG_ENABLED:
-        report_assist = enhance_report_assist(
-            report_assist,
-            {
-                "artifact_detected": filter_result.get("artifact_detected"),
-                "artifact_ratio": filter_result.get("artifact_ratio"),
-                "severity": severity,
-                "affected_slices": filter_result.get("affected_slices", []),
-                "analysis_reliability": reliability,
-            },
-            lesion_analysis,
-            task_record.get("case_context") or {},
-        )
+    report_assist = enhance_report_assist(
+        combine_report_assist(qc_suggestion, lesion_analysis, warnings),
+        {
+            "artifact_detected": filter_result.get("artifact_detected"),
+            "artifact_ratio": filter_result.get("artifact_ratio"),
+            "severity": severity,
+            "affected_slices": filter_result.get("affected_slices", []),
+            "analysis_reliability": reliability,
+        },
+        lesion_analysis,
+        task_record.get("case_context") or {},
+    )
 
     quality_control = {
         "backend": filter_result.get("backend"),
@@ -527,6 +585,7 @@ def run_orchestration_task(task_id: str, input_path: Path, original_filename: st
             content_type=content_type,
             case_context=task_record.get("case_context") or {},
             filter_result=filter_result,
+            output_dir=output_dir,
         )
         if lesion_result is not None:
             write_json(output_dir / "lesion_result.json", lesion_result)
@@ -693,6 +752,45 @@ async def create_clinical_diagnosis(payload: dict[str, Any]):
         return generate_diagnosis_assist(payload)
     except ClinicalAssistError as exc:
         raise api_error(502, OrchestratorErrorCode.CLINICAL_ASSIST_FAILED, str(exc)) from exc
+
+
+def _sse_event(event: str, payload: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _clinical_stream(kind: str, payload: dict[str, Any]) -> Iterator[str]:
+    try:
+        generator = stream_consultation_assist(payload) if kind == "consultation" else stream_diagnosis_assist(payload)
+        for item in generator:
+            yield _sse_event(str(item["event"]), item["data"])
+    except ClinicalAssistError as exc:
+        yield _sse_event(
+            "error",
+            {
+                "status": "failed",
+                "code": OrchestratorErrorCode.CLINICAL_ASSIST_FAILED,
+                "message": str(exc),
+            },
+        )
+    except Exception as exc:
+        yield _sse_event(
+            "error",
+            {
+                "status": "failed",
+                "code": OrchestratorErrorCode.CLINICAL_ASSIST_FAILED,
+                "message": str(exc),
+            },
+        )
+
+
+@app.post(f"{API_PREFIX}/clinical/consultation/stream")
+async def stream_clinical_consultation(payload: dict[str, Any]):
+    return StreamingResponse(_clinical_stream("consultation", payload), media_type="text/event-stream")
+
+
+@app.post(f"{API_PREFIX}/clinical/diagnosis/stream")
+async def stream_clinical_diagnosis(payload: dict[str, Any]):
+    return StreamingResponse(_clinical_stream("diagnosis", payload), media_type="text/event-stream")
 
 @app.post(f"{API_PREFIX}/reviews/{{task_id}}")
 async def create_head_ct_review(task_id: str, payload: dict[str, Any]):

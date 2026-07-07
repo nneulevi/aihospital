@@ -7,6 +7,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; min-width: 320px; background: #eef2f5; }
 button, input, select, textarea { font: inherit; letter-spacing: 0; }
 button { cursor: pointer; }
@@ -104,6 +105,148 @@ button.primary:hover { background: #105c75; }
 .detail-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; }
 .detail-row { padding: 10px 0; border-bottom: 1px solid #e1e7eb; }
 .detail-row strong { display: block; margin-bottom: 3px; }
+.ai-readable { display: grid; gap: 16px; }
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.summary-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d7e2e8;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #f8fbfc 0%, #ffffff 100%);
+}
+.summary-card span,
+.summary-card small {
+  display: block;
+  color: #60717e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.summary-card strong {
+  display: block;
+  margin: 5px 0 4px;
+  color: #17212b;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.ai-section,
+.detail-card {
+  padding: 15px;
+  border: 1px solid #dce4e9;
+  border-radius: 6px;
+  background: #ffffff;
+}
+.ai-section h3 {
+  margin: 0 0 10px;
+  color: #1e3f4e;
+  font-size: 15px;
+}
+.ai-section p {
+  margin: 7px 0;
+  color: #34464f;
+}
+.ai-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.ai-section li {
+  margin: 5px 0;
+}
+.confidence-row {
+  display: grid;
+  grid-template-columns: 120px minmax(120px, 1fr) 64px;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+.confidence-row span {
+  color: #52636f;
+  font-size: 13px;
+}
+.confidence-row strong {
+  color: #176b87;
+  text-align: right;
+}
+.confidence-meter {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7edf1;
+}
+.confidence-meter div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2d718c, #d39b22);
+}
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.preview-card {
+  margin: 0;
+  display: grid;
+  gap: 7px;
+}
+.preview-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border: 1px solid #cfd8df;
+  border-radius: 6px;
+  background: #101820;
+}
+.preview-card figcaption {
+  text-align: center;
+  color: #52636f;
+  font-size: 12px;
+}
+.detail-card {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.detail-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.detail-card-head strong { color: #17212b; }
+.detail-card-head span,
+.detail-card small {
+  color: #60717e;
+  font-size: 12px;
+}
+.detail-card p { margin: 0; }
+.empty-inline {
+  padding: 18px;
+  border: 1px dashed #cfd8df;
+  border-radius: 6px;
+  color: #60717e;
+  text-align: center;
+}
+.tech-details {
+  margin-top: 8px;
+  border-top: 1px dashed #dce4e9;
+  padding-top: 8px;
+}
+.tech-details summary {
+  width: max-content;
+  cursor: pointer;
+  color: #176b87;
+  font-size: 12px;
+  font-weight: 700;
+}
+.tech-details pre {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 5px;
+  background: #f6f8fa;
+}
 .toast { position: fixed; right: 20px; bottom: 20px; max-width: 380px; padding: 11px 14px; border-radius: 5px; background: #1e3039; color: #fff; opacity: 0; transform: translateY(8px); pointer-events: none; transition: .18s ease; }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { background: #8c2f2f; }
@@ -115,6 +258,10 @@ button.primary:hover { background: #105c75; }
   .worklist { max-height: 310px; border-right: 0; border-bottom: 1px solid #cfd8df; }
   .report-editor { min-height: 620px; }
   .editor-grid { grid-template-columns: 1fr; }
+  .summary-grid,
+  .preview-grid { grid-template-columns: 1fr; }
+  .confidence-row { grid-template-columns: 1fr; }
+  .confidence-row strong { text-align: left; }
   .field-group.full-width { grid-column: auto; }
   .report-heading { flex-direction: column; }
   .status-block { justify-content: start; }

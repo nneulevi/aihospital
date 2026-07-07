@@ -18,6 +18,14 @@
       <van-button plain type="primary" block round :loading="historyLoading" @click="loadScheduleHistory">
         查询历史排班
       </van-button>
+      <div
+        v-if="historyFeedback"
+        class="history-feedback"
+        :class="{ 'history-feedback--error': historyFeedbackType === 'error' }"
+        role="status"
+      >
+        {{ historyFeedback }}
+      </div>
     </section>
 
     <section v-if="scheduleResult.length" class="result-section">
@@ -62,6 +70,7 @@
         </div>
       </article>
     </section>
+    <van-empty v-else-if="hasQueriedHistory" description="暂无历史排班" />
 
     <van-popup v-model:show="showDeptPicker" position="bottom">
       <van-picker :columns="deptColumns" @confirm="onDeptConfirm" @cancel="showDeptPicker = false" />
@@ -76,22 +85,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
-import { scheduleGenerate, getResults } from '@/api'
+import { getAdminDepartments, scheduleGenerate, getResults } from '@/api'
 import type { DailySchedule, ScheduleGenerateRequestDTO, ScheduleResultVO } from '@/api/model'
 
 const selectedDeptId = ref<number | null>(null)
 const selectedDeptName = ref('')
-const startDate = ref('')
-const endDate = ref('')
+const startDate = ref(dayjs().format('YYYY-MM-DD'))
+const endDate = ref(dayjs().add(6, 'day').format('YYYY-MM-DD'))
 const ruleConfig = ref('')
 const generating = ref(false)
 const historyLoading = ref(false)
 const hasGenerated = ref(false)
+const hasQueriedHistory = ref(false)
 const scheduleResult = ref<DailySchedule[]>([])
 const historyResults = ref<ScheduleResultVO[]>([])
+const historyFeedback = ref('')
+const historyFeedbackType = ref<'info' | 'error'>('info')
 
 const showDeptPicker = ref(false)
 const showStartDatePicker = ref(false)
@@ -99,13 +111,41 @@ const showEndDatePicker = ref(false)
 const startDateValue = ref([dayjs().format('YYYY'), dayjs().format('MM'), dayjs().format('DD')])
 const endDateValue = ref([dayjs().add(6, 'day').format('YYYY'), dayjs().add(6, 'day').format('MM'), dayjs().add(6, 'day').format('DD')])
 
-const deptColumns = [
-  { text: '神经内科', value: 1 },
-  { text: '呼吸内科', value: 2 },
-  { text: '消化内科', value: 3 },
-  { text: '心血管内科', value: 4 },
-  { text: '骨科', value: 5 }
-]
+const deptColumns = ref<Array<{ text: string; value: number }>>([])
+
+const setPageFeedback = (message: string, type: 'info' | 'error' = 'info') => {
+  historyFeedbackType.value = type
+  historyFeedback.value = message
+}
+
+const loadDepartments = async () => {
+  try {
+    const res = await getAdminDepartments()
+    const source = (res.data || res || []) as any[]
+    const seen = new Set<string>()
+    const devMarkers = ['Extended', 'User Logic', '项目验收', '验收', '测试']
+    deptColumns.value = source
+      .filter((dept) => {
+        const id = Number(dept.deptId || dept.id)
+        const name = String(dept.deptName || dept.name || '').trim()
+        if (!id || !name || devMarkers.some((marker) => name.includes(marker))) return false
+        if (seen.has(name)) return false
+        seen.add(name)
+        return true
+      })
+      .map((dept) => ({
+        text: dept.deptName || dept.name || `科室${dept.deptId || dept.id}`,
+        value: Number(dept.deptId || dept.id),
+      }))
+    if (!selectedDeptId.value && deptColumns.value.length) {
+      selectedDeptId.value = deptColumns.value[0].value
+      selectedDeptName.value = deptColumns.value[0].text
+    }
+  } catch {
+    showToast('科室列表加载失败')
+    deptColumns.value = []
+  }
+}
 
 const onDeptConfirm = ({ selectedOptions }: any) => {
   selectedDeptName.value = selectedOptions?.[0]?.text || ''
@@ -127,15 +167,16 @@ const onEndDateConfirm = ({ selectedValues }: any) => {
 
 const generateSchedule = async () => {
   if (!selectedDeptId.value || !startDate.value || !endDate.value) {
-    showToast('请填写完整排班条件')
+    setPageFeedback('请填写完整排班条件。', 'error')
     return
   }
   if (dayjs(endDate.value).isBefore(dayjs(startDate.value))) {
-    showToast('结束日期不能早于开始日期')
+    setPageFeedback('结束日期不能早于开始日期。', 'error')
     return
   }
 
   generating.value = true
+  setPageFeedback('正在生成排班...')
   try {
     const dto: ScheduleGenerateRequestDTO = {
       deptId: selectedDeptId.value,
@@ -147,9 +188,13 @@ const generateSchedule = async () => {
     const data = res.data || res
     scheduleResult.value = data.results || []
     hasGenerated.value = true
-    showToast('排班生成成功')
+    if (scheduleResult.value.length === 0) {
+      setPageFeedback('当前科室暂无可生成的排班结果，请先维护医生信息或选择其他科室。', 'error')
+      return
+    }
+    setPageFeedback(`排班生成成功，已生成 ${scheduleResult.value.length} 天排班。`)
   } catch {
-    showToast('排班生成失败')
+    setPageFeedback('排班生成失败，请稍后重试。', 'error')
   } finally {
     generating.value = false
   }
@@ -157,10 +202,12 @@ const generateSchedule = async () => {
 
 const loadScheduleHistory = async () => {
   if (!selectedDeptId.value) {
-    showToast('请先选择科室')
+    setPageFeedback('请先选择科室后再查询历史排班。', 'error')
     return
   }
   historyLoading.value = true
+  hasQueriedHistory.value = false
+  setPageFeedback('正在查询历史排班...')
   try {
     const res = await getResults({
       query: {
@@ -173,15 +220,20 @@ const loadScheduleHistory = async () => {
     })
     const data = res.data || res
     historyResults.value = data.records || []
-    showToast(historyResults.value.length ? '历史排班加载完成' : '暂无历史排班')
+    hasQueriedHistory.value = true
+    setPageFeedback(historyResults.value.length
+      ? `已查询到 ${historyResults.value.length} 条历史排班。`
+      : '当前筛选条件下暂无历史排班。')
   } catch {
-    showToast('历史排班加载失败')
+    setPageFeedback('历史排班加载失败，请稍后重试。', 'error')
   } finally {
     historyLoading.value = false
   }
 }
 
 const formatDate = (date?: string) => date ? dayjs(date).format('YYYY-MM-DD') : '--'
+
+onMounted(loadDepartments)
 </script>
 
 <style lang="scss" scoped>
@@ -206,6 +258,20 @@ const formatDate = (date?: string) => date ? dayjs(date).format('YYYY-MM-DD') : 
   font-size: 16px;
   font-weight: 600;
   color: #263238;
+}
+.history-feedback {
+  padding: 9px 12px;
+  color: #0f766e;
+  font-size: 14px;
+  line-height: 1.45;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+}
+.history-feedback--error {
+  color: #b42318;
+  background: #fff1f3;
+  border-color: #fecdd3;
 }
 .day-card {
   margin-bottom: 12px;

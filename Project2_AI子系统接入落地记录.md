@@ -269,3 +269,25 @@ JWT status:
 
 - Employee password login, employee code login, patient code login, patient auth register/login, and patient switch all return JWT.
 - Patient JWT claims include `patientId`, `phone`, `caseNumber`, and `roleType=PATIENT`.
+
+## 2026-07-01 AI 问诊/辅助诊断逐字流式输出接入
+
+本次将原有“阶段式 SSE”升级为“百炼 token 增量 SSE + final 结构化结果”：
+
+- Orchestrator `/api/head-ct-ai/clinical/consultation/stream`、`/api/head-ct-ai/clinical/diagnosis/stream` 调用百炼 OpenAI-compatible 接口时使用 `stream=true`。
+- Orchestrator 将模型增量内容转为 `event: delta`，并在结束时解析完整 JSON，执行安全校验、记忆落库，再发送 `event: final`。
+- Project2 `/api/ai/consultation/triage/stream`、`/api/ai/diagnosis/suggest/stream` 代理 Orchestrator SSE；收到 final 后写入 Project2 本地 AI 问诊/诊断建议表，再向前端返回原有 VO 结构。
+- 患者 Web 问诊、患者移动端问诊、医生辅助诊断页面均显示逐字生成预览；预览层过滤 JSON 字段名，只展示科室名、理由、诊断证据等自然语言值，final 到达后切换为结构化推荐卡片。
+- 同步 JSON 接口保持不变，用于非流式调用和前端传输失败兜底。
+
+验证结果：
+
+```text
+python_ast_ok
+Project2 mvn compile: passed
+frontend npm run type-check: passed
+pytest HeadCTOrchestrator/tests/test_conversation_memory.py HeadCTOrchestrator/tests/test_rag_components.py: 22 passed
+Project2 consultation stream: delta_count=56, final_seen=true, recommendations=2, has_field_name=false
+Project2 diagnosis stream: delta_count=81, final_seen=true, suggestions=3, has_field_name=false
+JsonValueStreamFormatter: filters schema keys such as dept_id and keeps natural-language values
+```

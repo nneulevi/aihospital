@@ -711,3 +711,127 @@ npm run build-only -> passed
 ```
 
 说明：`playwright.config.ts` 已关闭 video，避免额外下载 Playwright ffmpeg 到系统盘；失败时仍保留 trace 与失败截图。
+
+## 2026-07-01 用户视角全局逻辑验收扩展
+
+### 本次目标
+
+本次不再只验证接口能返回成功，而是从真实用户视角检查同一业务在多角色、多页面、多模块之间是否一致：
+
+- 患者：挂号、就诊记录、待缴费/已缴费/已退费订单、个人中心统计。
+- 医生：待诊队列、接诊中队列、病历、检查/检验/处置/处方、确诊后病历状态。
+- 管理员：收费、退费、财务流水、日结汇总。
+- 医技：收费后任务可见、执行、报告录入、AI 解读、医生端结果回读。
+- 药房：库存字段完整、入库、盘点、低库存预警、发药、退药、库存流水。
+- 头部 CT：Project2 上传 CT、AI 分析、报告生成、报告服务审核发布、EMR 归档。
+- 前端：桌面/移动核心页面截图级验收，无红色错误提示，真实 CT 流程页面可完成。
+
+### 新增验收脚本
+
+```text
+scripts/e2e_user_logic_acceptance.py
+```
+
+该脚本会主动种子化一组真实业务数据，并断言：
+
+- 五类登录角色均可正常登录，错配角色被拒绝。
+- 患者端 `dashboard.recordCount` 与 `/api/patient/records.total` 一致。
+- 患者端 `dashboard.unpaidOrderCount` 与 `/api/patient/orders?orderState=UNPAID` 一致。
+- 患者端 `dashboard.unpaidAmount` 与待缴费订单金额合计一致。
+- 医生接诊后患者从待诊转入接诊中。
+- 检查、检验、处置、处方均进入患者订单。
+- 医技执行并录入结果后，医生端检查结果可见。
+- 药房库存列表必须包含药品编码、名称、规格、单位、价格、厂家、库存。
+- 药品入库、盘点、发药、退药均写入库存流水。
+- 处方退药后患者订单显示 `REFUNDED`。
+- 财务流水必须同时包含 `CHARGE` 和 `REFUND`。
+- 日结汇总必须反映收费和退费。
+- 头部 CT AI 分析必须返回 `positiveProbability` 和 `subtypeProbabilities`。
+- 头部 CT 病灶模型不能使用 checkpoint fallback。
+- 报告服务发布后必须写入 EMR，且 EMR 状态为 `final`。
+
+### 本次发现并修复的问题
+
+#### 药房端退药缺少财务退费流水
+
+现象：
+
+- 药房端 `/api/drugstore/refund` 能恢复库存、更新处方状态。
+- 但管理员财务流水中没有对应 `REFUND` 记录。
+- 从用户视角看，药房退药和财务日结不一致。
+
+修复：
+
+- `Project2/src/main/java/com/neuedu/his/service/impl/DrugstoreServiceImpl.java`
+- 在药房退药成功后写入 `finance_record`：
+  - `itemType=PRESCRIPTION`
+  - `recordType=REFUND`
+  - `chargeMethod=REFUND`
+  - `operatorName=药房退药`
+
+### 验收结果
+
+后端编译：
+
+```text
+cmd /c ".\mvnw.cmd -q -DskipTests -Dmaven.test.skip=true compile -Dmaven.repo.local=D:\exam\.m2\repository"
+passed
+```
+
+综合用户逻辑验收：
+
+```powershell
+python -X utf8 scripts\e2e_user_logic_acceptance.py
+```
+
+关键结果：
+
+```text
+status=success
+Project2=UP
+Orchestrator=ok
+Report=ok
+EMR=ok
+medical_tech_tasks_checked=3
+stock_record_types=[CHECK, DISPENSE, IN, REFUND]
+finance_record_types=[CHARGE, REFUND]
+final_patient_record.visitState=DIAGNOSIS_DONE
+headct.positive_probability=0.06768138706684113
+headct.persisted_ai.ai_image_analysis=1
+headct.persisted_ai.ai_generated_report=1
+```
+
+前端类型检查：
+
+```text
+npm run type-check -> passed
+```
+
+前端截图级视觉验收：
+
+```powershell
+cd D:\exam\frontend
+npm run test:visual
+```
+
+结果：
+
+```text
+24 passed
+4 skipped
+```
+
+覆盖说明：
+
+- 桌面端真实 CT 流程：医生页面真实上传 CT -> AI 识别 -> 可视化输出 -> 生成报告 -> 报告服务审核/签署/发布 -> EMR 归档。
+- 桌面与移动端：患者、医生、管理员、医技、药房核心页面。
+- 检查项：页面无红色错误提示、无 500 响应、无登录失败/加载失败/AI 失败提示。
+
+### 结论
+
+当前全局验收已经从“能跑通”提升到“用户视角逻辑一致”：
+
+- 多角色入口可用。
+- 核心业务状态在患者端、医生端、管理员端、医技端、药房端之间一致。
+- 头部 CT AI 结果能在医生端页面真实生成并进入报告/EMR 链路。
+- 前端核心页面通过桌面和移动截图级验收。

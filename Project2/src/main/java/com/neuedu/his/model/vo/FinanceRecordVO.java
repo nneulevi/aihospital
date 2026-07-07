@@ -11,6 +11,7 @@ public class FinanceRecordVO {
     private String recordNo;
     private Integer registerId;
     private String patientName;
+    private Integer itemId;
     private String itemType;
     private String itemName;
     private BigDecimal amount;

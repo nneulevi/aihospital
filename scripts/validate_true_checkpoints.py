@@ -25,7 +25,8 @@ def choose_checkpoint(candidates: list[tuple[str, Path]]) -> dict[str, Any]:
                 "selected_path": str(path),
                 "selected_provenance": provenance,
                 "selected_exists": True,
-                "fallback_used": not provenance.startswith("mature_public_external"),
+                "fallback_used": provenance == "smoke_fallback",
+                "formal_weight_ready": provenance != "smoke_fallback",
             }
     provenance, path = candidates[-1]
     return {
@@ -33,6 +34,7 @@ def choose_checkpoint(candidates: list[tuple[str, Path]]) -> dict[str, Any]:
         "selected_provenance": provenance,
         "selected_exists": path.exists(),
         "fallback_used": True,
+        "formal_weight_ready": False,
     }
 
 
@@ -48,6 +50,10 @@ def build_report() -> dict[str, Any]:
     vinbig_raw = vinbig_dir / "best_resnet50.pth"
     lesion_local = ROOT / "HeadCTLesionDetection" / "models" / "hemorrhage" / "runs" / "hemorrhage_v1" / "best.pt"
     lesion_smoke = ROOT / "HeadCTLesionDetection" / "models" / "hemorrhage" / "runs" / "hemorrhage_v1" / "smoke_best.pt"
+    ichseg_dir = vinbig_dir / "ichseg_rank_nnunet"
+    ichseg_checkpoint = ichseg_dir / "fold_0" / "checkpoint_final.pth"
+    ichseg_plans = ichseg_dir / "nnUNetPlans.json"
+    ichseg_manifest = ichseg_dir / "manifest.json"
 
     segmentation_dataset_candidates = [
         ROOT / "HeadCTLesionDetection" / "datasets" / "physionet_ct_ich",
@@ -123,8 +129,25 @@ def build_report() -> dict[str, Any]:
         "lesion_hemorrhage_segmentation": {
             "task_type": "segmentation",
             "purpose": "intracranial_hemorrhage_mask",
-            "selected_provenance": "dataset_required",
-            "mature_checkpoint_ready": False,
+            "mature_model_reference": {
+                "name": "ICHSeg learning-to-rank nnU-Net variant",
+                "paper": "Segmentation of Tiny Intracranial Hemorrhage via Learning-to-Rank Local Feature Enhancement, ISBI 2024",
+                "code_url": "https://github.com/med-air/ICHSeg",
+                "checkpoint_url": "SharePoint public folder linked by the ICHSeg README",
+            },
+            "selection": choose_checkpoint(
+                [
+                    ("mature_public_external", ichseg_checkpoint),
+                ]
+            ),
+            "mature_checkpoint_ready": ichseg_checkpoint.exists() and ichseg_plans.exists(),
+            "runtime_integration_status": "checkpoint_registered_not_yet_executed_by_lesion_service",
+            "required_runtime": "nnU-Net v2 with nnUNetTrainer_rank",
+            "candidates": {
+                "ichseg_fold0_checkpoint": file_info(ichseg_checkpoint),
+                "ichseg_plans": file_info(ichseg_plans),
+                "ichseg_manifest": file_info(ichseg_manifest),
+            },
             "recommended_public_datasets": [
                 {
                     "name": "PhysioNet CT-ICH",

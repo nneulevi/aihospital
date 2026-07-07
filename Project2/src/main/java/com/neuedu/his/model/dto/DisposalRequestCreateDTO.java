@@ -1,6 +1,8 @@
 package com.neuedu.his.model.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -12,14 +14,17 @@ public class DisposalRequestCreateDTO {
     private Integer registerId;
     
     @NotEmpty(message = "处置项目不能为空")
+    @Valid
     private List<DisposalItemDTO> items;
     
     @Data
     public static class DisposalItemDTO {
         @NotNull(message = "医技项目ID不能为空")
         private Integer medicalTechnologyId;
-        
+
+        @NotBlank(message = "处置项目名称不能为空")
         private String disposalInfo;
+        @NotBlank(message = "处置部位不能为空")
         private String disposalPosition;
     }
 }

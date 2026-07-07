@@ -57,8 +57,6 @@ def build_ai_imaging_status(
     limitations: list[str] = []
     if reduction_status != "executable":
         limitations.append("metal_artifact_reduction_not_executed")
-    if lesion_task_type == "classification":
-        limitations.append("lesion_output_is_classification_not_segmentation")
     if lesion_fallback_used:
         limitations.append("lesion_checkpoint_fallback_used")
     if not workflow_ready:
@@ -91,6 +89,7 @@ def build_ai_imaging_status(
         "lesion_model": {
             "status": "ready" if lesion_ready else str(lesion_analysis.get("status") or "not_ready"),
             "task_type": lesion_task_type,
+            "scope_note": "classification_result_without_segmentation_mask" if lesion_task_type == "classification" else "segmentation_output_available",
             "model_name": lesion_result.get("model_name"),
             "provider": lesion_result.get("provider"),
             "checkpoint_provenance": lesion_result.get("checkpoint_provenance"),

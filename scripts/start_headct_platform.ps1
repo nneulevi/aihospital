@@ -6,6 +6,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+
 $processPath = [Environment]::GetEnvironmentVariable("Path", "Process")
 if (-not $processPath) {
     $processPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
@@ -26,6 +33,14 @@ if (Test-Path $ragEnv) {
 } elseif (Test-Path $ragEnvExample) {
     Write-Host "RAG local env not found; using example/default environment. Copy HeadCTOrchestrator\scripts\headct_rag_env.example.ps1 to headct_rag_env.local.ps1 to enable real API keys."
     . $ragEnvExample
+}
+
+$project2Env = Join-Path $repoRoot "scripts\project2_env.local.ps1"
+$project2EnvExample = Join-Path $repoRoot "scripts\project2_env.example.ps1"
+if (Test-Path $project2Env) {
+    . $project2Env
+} elseif (Test-Path $project2EnvExample) {
+    Write-Host "Project2 local env not found; using default database credentials. Copy scripts\project2_env.example.ps1 to project2_env.local.ps1 when local PostgreSQL does not use postgres/postgres."
 }
 
 if (-not $env:RAG_DB_DSN) {
@@ -70,7 +85,7 @@ if (Test-Path $filterMatureCheckpoint) {
 } elseif (Test-Path $filterLocalCheckpoint) {
     $env:CT_MODEL_WEIGHT_PATH = $filterLocalCheckpoint
     $env:CT_CHECKPOINT_PROVENANCE = "local_project_trained"
-    $env:CT_CHECKPOINT_FALLBACK_USED = "true"
+    $env:CT_CHECKPOINT_FALLBACK_USED = "false"
     $env:CT_MATURE_CANDIDATE_PATH = $filterMatureCheckpoint
     $env:CT_MODEL_NAME = "metal_unet3d_local"
     $env:CT_MODEL_VERSION = "local-trained"
@@ -82,7 +97,7 @@ if (Test-Path $filterMatureCheckpoint) {
     $env:CT_MODEL_NAME = "metal_unet3d_smoke"
     $env:CT_MODEL_VERSION = "smoke-link-test"
 }
-$env:CT_SERVER_DEVICE = "cuda"
+Remove-Item Env:CT_SERVER_DEVICE -ErrorAction SilentlyContinue
 
 $env:LESION_MODE = "model"
 $env:LESION_PORT = "8021"
@@ -92,6 +107,21 @@ $vinbigdataExternalDir = Join-Path $repoRoot "HeadCTLesionDetection\models\hemor
 $vinbigdataScriptedCheckpoint = Join-Path $vinbigdataExternalDir "vinbigdata_midl2020_cnn_lstm.pt"
 $vinbigdataTorchscriptCheckpoint = Join-Path $vinbigdataExternalDir "vinbigdata_midl2020_cnn_lstm.torchscript.pt"
 $vinbigdataRawResnetCheckpoint = Join-Path $vinbigdataExternalDir "best_resnet50.pth"
+$vinbigdataCalibrationPath = Join-Path $repoRoot "HeadCTLesionDetection\models\hemorrhage\runs\vinbigdata_cq500_calibration\calibration.json"
+$ichsegExternalDir = Join-Path $vinbigdataExternalDir "ichseg_rank_nnunet"
+$env:ICHSEG_CHECKPOINT = Join-Path $ichsegExternalDir "fold_0\checkpoint_final.pth"
+$env:ICHSEG_PLANS = Join-Path $ichsegExternalDir "nnUNetPlans.json"
+$env:ICHSEG_MANIFEST = Join-Path $ichsegExternalDir "manifest.json"
+if ((Test-Path $env:ICHSEG_CHECKPOINT) -and (Test-Path $env:ICHSEG_PLANS)) {
+    $env:ICHSEG_ENABLED = "true"
+    $env:ICHSEG_RUNTIME_STATUS = "enabled_executable"
+    if (-not $env:ICHSEG_INFERENCE_SHAPE) {
+        $env:ICHSEG_INFERENCE_SHAPE = "16,192,192"
+    }
+} else {
+    $env:ICHSEG_ENABLED = "false"
+    $env:ICHSEG_RUNTIME_STATUS = "checkpoint_registered_not_yet_executed_by_lesion_service"
+}
 if (Test-Path $vinbigdataScriptedCheckpoint) {
     $env:HEMORRHAGE_MODEL_PROVIDER = "vinbigdata"
     $env:VINBIGDATA_CHECKPOINT = $vinbigdataScriptedCheckpoint
@@ -125,8 +155,31 @@ if (Test-Path $vinbigdataScriptedCheckpoint) {
 }
 $env:HEMORRHAGE_FALLBACK_CHECKPOINT = $hemorrhageSmokeCheckpoint
 $env:HEMORRHAGE_MATURE_CANDIDATE_PATHS = "$vinbigdataScriptedCheckpoint;$vinbigdataTorchscriptCheckpoint;$vinbigdataRawResnetCheckpoint"
-$env:HEMORRHAGE_ALLOW_INFERENCE_FALLBACK = "true"
-$env:HEMORRHAGE_DEVICE = "cuda"
+$env:HEMORRHAGE_ALLOW_INFERENCE_FALLBACK = "false"
+$env:HEMORRHAGE_DEVICE = "auto"
+if (-not $env:VINBIGDATA_SAMPLING_OFFSETS) {
+    $env:VINBIGDATA_SAMPLING_OFFSETS = "-0.25,0,0.25"
+}
+if (-not $env:VINBIGDATA_TTA_FLIP) {
+    $env:VINBIGDATA_TTA_FLIP = "true"
+}
+if (Test-Path $vinbigdataCalibrationPath) {
+    try {
+        $calibration = Get-Content -Raw -Encoding UTF8 $vinbigdataCalibrationPath | ConvertFrom-Json
+        $isUnsupervised = [string]$calibration.source -eq "cq500ct200_unsupervised_distribution"
+        $allowUnsupervised = $env:VINBIGDATA_ALLOW_UNSUPERVISED_CALIBRATION -eq "true"
+        if (-not $isUnsupervised -or $allowUnsupervised) {
+            $env:VINBIGDATA_CALIBRATION_PATH = $vinbigdataCalibrationPath
+            if ($calibration.recommended_threshold -ne $null) {
+                $env:VINBIGDATA_THRESHOLD = [string]$calibration.recommended_threshold
+            }
+        } else {
+            Write-Host "VinBigData calibration is unsupervised distribution-only; not applying as runtime threshold. Set VINBIGDATA_ALLOW_UNSUPERVISED_CALIBRATION=true to opt in."
+        }
+    } catch {
+        Write-Host "VinBigData calibration exists but cannot be parsed; using configured/default threshold."
+    }
+}
 
 $env:FILTER_BASE_URL = "http://127.0.0.1:8000"
 $env:LESION_SERVICE_ENABLED = "true"

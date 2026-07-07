@@ -26,15 +26,19 @@
         <result property="gender" column="gender"/>
         <result property="birthdate" column="birthdate"/>
         <result property="caseNumber" column="case_number"/>
+        <result property="diagnosis" column="diagnosis"/>
+        <result property="recordStatus" column="record_status"/>
     </resultMap>
 
     <select id="selectPatientRecords" resultMap="RegisterResultMap">
-        SELECT r.*, p.real_name, p.gender, p.birthdate, d.dept_name, e.realname as doctor_name, rl.regist_name
+        SELECT r.*, p.real_name, p.gender, p.birthdate, d.dept_name, e.realname as doctor_name, rl.regist_name,
+               mr.diagnosis, mr.record_status
         FROM register r
         JOIN patient p ON r.patient_id = p.id
         JOIN department d ON r.deptment_id = d.id
         JOIN employee e ON r.employee_id = e.id
         JOIN regist_level rl ON r.regist_level_id = rl.id
+        LEFT JOIN medical_record mr ON r.id = mr.register_id
         WHERE r.patient_id = #{patientId}
         <if test="startDate != null">AND r.visit_date &gt;= #{startDate}</if>
         <if test="endDate != null">AND r.visit_date &lt;= #{endDate}</if>
@@ -48,19 +52,67 @@
                  JOIN patient p ON r.patient_id = p.id
                  JOIN department d ON r.deptment_id = d.id
         WHERE r.employee_id = #{doctorId}
-          AND r.visit_state = #{visitState}
-        ORDER BY r.queue_no ASC, r.visit_date ASC
+          AND r.visit_date = COALESCE(#{visitDate}, CURRENT_DATE)
+          AND (
+              r.visit_state = #{visitState}
+              OR (#{visitState} = 'REGISTERED' AND r.visit_state = 'CHECKED_IN')
+          )
+        <if test="noon != null and noon != ''">
+          AND (
+              r.noon = #{noon}
+              OR (#{noon} = 'MORNING' AND r.noon = 'AM')
+              OR (#{noon} = 'AFTERNOON' AND r.noon = 'PM')
+              OR (#{noon} = 'AM' AND r.noon = 'MORNING')
+              OR (#{noon} = 'PM' AND r.noon = 'AFTERNOON')
+          )
+        </if>
+        ORDER BY r.queue_no ASC, r.create_time DESC
+    </select>
+
+    <select id="selectLatestTodayByPatient" resultMap="RegisterResultMap">
+        SELECT r.*, p.real_name, p.gender, p.birthdate, p.case_number, d.dept_name, e.realname as doctor_name, rl.regist_name,
+               mr.diagnosis, mr.record_status
+        FROM register r
+                 JOIN patient p ON r.patient_id = p.id
+                 JOIN department d ON r.deptment_id = d.id
+                 JOIN employee e ON r.employee_id = e.id
+                 JOIN regist_level rl ON r.regist_level_id = rl.id
+                 LEFT JOIN medical_record mr ON r.id = mr.register_id
+        WHERE r.patient_id = #{patientId}
+          AND r.visit_date = #{visitDate}
+          AND COALESCE(r.visit_state, '') NOT IN ('REFUNDED', 'CANCELLED', 'FINISHED')
+        ORDER BY r.queue_no ASC, r.create_time DESC
+        LIMIT 1
+    </select>
+
+    <select id="countWaitingAhead" resultType="int">
+        SELECT COUNT(*)
+        FROM register r
+        WHERE r.deptment_id = #{deptId}
+          AND r.employee_id = #{doctorId}
+          AND r.visit_date = #{visitDate}
+          AND (r.noon = #{noon}
+               OR (#{noon} = 'MORNING' AND r.noon = 'AM')
+               OR (#{noon} = 'AFTERNOON' AND r.noon = 'PM')
+               OR (#{noon} = 'AM' AND r.noon = 'MORNING')
+               OR (#{noon} = 'PM' AND r.noon = 'AFTERNOON'))
+          AND r.queue_no &lt; #{queueNo}
+          AND r.visit_state IN ('REGISTERED', 'CHECKED_IN', 'DOCTOR_RECEIVED')
     </select>
 
     <select id="selectVisitDetail" resultMap="RegisterResultMap">
         SELECT r.*,
                p.real_name, p.gender, p.birthdate, p.case_number, p.phone, p.home_address,
+               d.dept_name, e.realname as doctor_name, rl.regist_name,
                mr.readme, mr.present, mr.diagnosis, mr.record_status,
                (SELECT COUNT(*) FROM check_request WHERE register_id = r.id) as check_count,
                (SELECT COUNT(*) FROM inspection_request WHERE register_id = r.id) as inspection_count,
                (SELECT COUNT(*) FROM prescription WHERE register_id = r.id) as prescription_count
         FROM register r
                  JOIN patient p ON r.patient_id = p.id
+                 JOIN department d ON r.deptment_id = d.id
+                 JOIN employee e ON r.employee_id = e.id
+                 JOIN regist_level rl ON r.regist_level_id = rl.id
                  LEFT JOIN medical_record mr ON r.id = mr.register_id
         WHERE r.id = #{registerId}
     </select>

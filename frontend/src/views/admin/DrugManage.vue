@@ -35,6 +35,25 @@
           <van-field v-model="dispensePharmacistId" label="药师ID" type="digit" placeholder="输入药师ID" />
           <van-button type="primary" block round :loading="dispensing" @click="handleDispense">确认发药</van-button>
         </section>
+        <section class="search-panel">
+          <van-button size="small" type="primary" :loading="pendingDispenseLoading" @click="loadPendingDispense">刷新待发药处方</van-button>
+        </section>
+        <div class="inventory-list">
+          <article v-for="item in pendingDispense" :key="item.prescriptionId" class="drug-card selectable" @click="fillDispense(item)">
+            <header>
+              <strong>{{ item.patientName || `处方 ${item.prescriptionNo}` }}</strong>
+              <van-tag type="warning">{{ item.statusName }}</van-tag>
+            </header>
+            <div class="drug-grid">
+              <span>处方ID：{{ item.prescriptionId }}</span>
+              <span>挂号ID：{{ item.registerId }}</span>
+              <span>医生：{{ item.doctorName || '--' }}</span>
+              <span>金额：¥{{ formatMoney(item.totalAmount) }}</span>
+              <span class="wide">药品：{{ item.drugSummary || '--' }}</span>
+            </div>
+          </article>
+          <van-empty v-if="!pendingDispenseLoading && pendingDispense.length === 0" description="暂无待发药处方" />
+        </div>
       </van-tab>
 
       <van-tab title="退药" name="drugRefund">
@@ -44,6 +63,25 @@
           <van-field v-model="refundReason" label="退药原因" type="textarea" rows="2" autosize placeholder="输入退药原因" />
           <van-button type="danger" block round :loading="refunding" @click="handleDrugRefund">确认退药</van-button>
         </section>
+        <section class="search-panel">
+          <van-button size="small" type="primary" :loading="pendingRefundLoading" @click="loadPendingRefund">刷新可退药处方</van-button>
+        </section>
+        <div class="inventory-list">
+          <article v-for="item in pendingRefund" :key="item.prescriptionId" class="drug-card selectable" @click="fillRefund(item)">
+            <header>
+              <strong>{{ item.patientName || `处方 ${item.prescriptionNo}` }}</strong>
+              <van-tag type="success">{{ item.statusName }}</van-tag>
+            </header>
+            <div class="drug-grid">
+              <span>处方ID：{{ item.prescriptionId }}</span>
+              <span>挂号ID：{{ item.registerId }}</span>
+              <span>医生：{{ item.doctorName || '--' }}</span>
+              <span>金额：¥{{ formatMoney(item.totalAmount) }}</span>
+              <span class="wide">药品：{{ item.drugSummary || '--' }}</span>
+            </div>
+          </article>
+          <van-empty v-if="!pendingRefundLoading && pendingRefund.length === 0" description="暂无可退药处方" />
+        </div>
       </van-tab>
     </van-tabs>
   </div>
@@ -52,7 +90,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { showToast } from 'vant'
-import { dispense, drugRefund, getDrugInventory, getInventory } from '@/api'
+import {
+  dispense,
+  drugRefund,
+  getAdminPendingDispense,
+  getAdminPendingRefund,
+  getDrugInventory,
+  getInventory,
+  type PrescriptionWorkItemVO
+} from '@/api'
 import type { DispenseRequestDTO, DrugInventoryVO, DrugRefundRequestDTO } from '@/api/model'
 
 const activeTab = ref('inventory')
@@ -63,11 +109,24 @@ const inventoryLoading = ref(false)
 const dispensePrescriptionId = ref('')
 const dispensePharmacistId = ref('1')
 const dispensing = ref(false)
+const pendingDispense = ref<PrescriptionWorkItemVO[]>([])
+const pendingDispenseLoading = ref(false)
 
 const refundPrescriptionId = ref('')
 const refundPharmacistId = ref('1')
 const refundReason = ref('')
 const refunding = ref(false)
+const pendingRefund = ref<PrescriptionWorkItemVO[]>([])
+const pendingRefundLoading = ref(false)
+
+const showReadableToast = (message: string) => {
+  showToast({
+    message,
+    position: 'top',
+    className: 'app-readable-toast',
+    duration: 1800
+  })
+}
 
 const loadInventory = async () => {
   inventoryLoading.value = true
@@ -81,8 +140,9 @@ const loadInventory = async () => {
     })
     const data = res.data || res
     inventoryList.value = data.records || []
+    showReadableToast(`库存已刷新，共 ${inventoryList.value.length} 条`)
   } catch {
-    showToast('库存加载失败')
+    showReadableToast('库存加载失败，请稍后重试')
   } finally {
     inventoryLoading.value = false
   }
@@ -97,9 +157,9 @@ const loadDrugstoreInventory = async () => {
     })
     const data = res.data || res
     inventoryList.value = data.records || []
-    showToast('药房库存加载完成')
+    showReadableToast(`药房库存加载完成，共 ${inventoryList.value.length} 条`)
   } catch {
-    showToast('药房库存加载失败')
+    showReadableToast('药房库存加载失败，请稍后重试')
   } finally {
     inventoryLoading.value = false
   }
@@ -109,7 +169,7 @@ const handleDispense = async () => {
   const prescriptionId = Number(dispensePrescriptionId.value)
   const pharmacistId = Number(dispensePharmacistId.value)
   if (!prescriptionId || !pharmacistId) {
-    showToast('请填写处方ID和药师ID')
+    showReadableToast('请填写处方ID和药师ID')
     return
   }
 
@@ -117,21 +177,38 @@ const handleDispense = async () => {
   try {
     const dto: DispenseRequestDTO = { prescriptionId, pharmacistId }
     await dispense(dto)
-    showToast('发药成功')
+    showReadableToast('发药成功')
     dispensePrescriptionId.value = ''
     await loadInventory()
+    await loadPendingDispense()
   } catch {
-    showToast('发药失败')
+    showReadableToast('发药失败')
   } finally {
     dispensing.value = false
   }
+}
+
+const loadPendingDispense = async () => {
+  pendingDispenseLoading.value = true
+  try {
+    const res = await getAdminPendingDispense()
+    pendingDispense.value = (res.data || res || []) as PrescriptionWorkItemVO[]
+  } catch {
+    showReadableToast('待发药处方加载失败')
+  } finally {
+    pendingDispenseLoading.value = false
+  }
+}
+
+const fillDispense = (item: PrescriptionWorkItemVO) => {
+  dispensePrescriptionId.value = String(item.prescriptionId || '')
 }
 
 const handleDrugRefund = async () => {
   const prescriptionId = Number(refundPrescriptionId.value)
   const pharmacistId = Number(refundPharmacistId.value)
   if (!prescriptionId || !pharmacistId || !refundReason.value) {
-    showToast('请填写完整退药信息')
+    showReadableToast('请填写完整退药信息')
     return
   }
 
@@ -143,20 +220,42 @@ const handleDrugRefund = async () => {
       refundReason: refundReason.value
     }
     await drugRefund(dto)
-    showToast('退药成功')
+    showReadableToast('退药成功')
     refundPrescriptionId.value = ''
     refundReason.value = ''
     await loadInventory()
+    await loadPendingRefund()
   } catch {
-    showToast('退药失败')
+    showReadableToast('退药失败')
   } finally {
     refunding.value = false
   }
 }
 
+const loadPendingRefund = async () => {
+  pendingRefundLoading.value = true
+  try {
+    const res = await getAdminPendingRefund()
+    pendingRefund.value = (res.data || res || []) as PrescriptionWorkItemVO[]
+  } catch {
+    showReadableToast('可退药处方加载失败')
+  } finally {
+    pendingRefundLoading.value = false
+  }
+}
+
+const fillRefund = (item: PrescriptionWorkItemVO) => {
+  refundPrescriptionId.value = String(item.prescriptionId || '')
+  refundReason.value = refundReason.value || '患者退药'
+}
+
 const formatMoney = (value?: number) => Number(value || 0).toFixed(2)
 
-onMounted(loadInventory)
+onMounted(() => {
+  loadInventory()
+  loadPendingDispense()
+  loadPendingRefund()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -175,6 +274,13 @@ onMounted(loadInventory)
   border: 1px solid #eef0f3;
   border-radius: 8px;
 }
+.search-panel {
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+}
+.search-panel :deep(.van-search) {
+  padding: 0;
+}
 .inventory-list {
   padding: 0 12px 12px;
 }
@@ -187,6 +293,13 @@ onMounted(loadInventory)
 }
 .drug-card.warning {
   border-left: 4px solid #d93025;
+}
+.drug-card.selectable {
+  cursor: pointer;
+}
+.drug-card.selectable:hover {
+  border-color: #1677ff;
+  background: #f8fbff;
 }
 .drug-card header {
   display: flex;
@@ -201,5 +314,13 @@ onMounted(loadInventory)
   gap: 8px;
   color: #4f5b67;
   font-size: 13px;
+}
+.drug-grid .wide {
+  grid-column: 1 / -1;
+}
+@media (max-width: 640px) {
+  .search-panel {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

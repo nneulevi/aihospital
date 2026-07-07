@@ -556,14 +556,25 @@ def normalize_conversation_id(payload: dict[str, Any]) -> str:
     return ""
 
 
+def _nullable_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def session_metadata(payload: dict[str, Any], conversation_id: str) -> dict[str, Any]:
     return {
         "conversation_id": conversation_id,
         "role_scope": str(payload.get("role_scope") or "unknown")[:40],
         "user_id": str(payload.get("user_id") or "")[:80] or None,
-        "patient_id": payload.get("patient_id"),
-        "visit_id": payload.get("visit_id") or payload.get("register_id"),
-        "medical_record_id": payload.get("medical_record_id"),
+        "patient_id": _nullable_int(payload.get("patient_id")),
+        "visit_id": _nullable_int(payload.get("visit_id") or payload.get("register_id")),
+        "medical_record_id": _nullable_int(payload.get("medical_record_id")),
         "scene": str(payload.get("scene") or "clinical_assist")[:80],
     }
 

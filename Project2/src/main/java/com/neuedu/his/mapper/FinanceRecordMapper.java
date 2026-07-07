@@ -25,6 +25,7 @@ public interface FinanceRecordMapper {
                    fr.record_no,
                    fr.register_id,
                    COALESCE(p.real_name, '未知患者') AS patient_name,
+                   fr.item_id,
                    fr.item_type,
                    fr.item_name,
                    fr.amount,

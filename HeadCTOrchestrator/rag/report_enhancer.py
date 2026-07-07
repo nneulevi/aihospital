@@ -87,6 +87,45 @@ def _confidence(value: Any) -> float | None:
     return round(min(max(score, 0.0), 1.0), 3)
 
 
+SUBTYPE_LABELS = {
+    "any": "任意出血",
+    "epidural": "硬膜外出血",
+    "intraparenchymal": "脑实质内出血",
+    "intraventricular": "脑室内出血",
+    "subarachnoid": "蛛网膜下腔出血",
+    "subdural": "硬膜下出血",
+}
+
+LESION_TYPE_LABELS = {
+    "intracranial_hemorrhage": "颅内出血",
+    "skull_fracture": "颅骨骨折",
+}
+
+
+def _format_probability(value: Any) -> str:
+    score = _confidence(value)
+    if score is None:
+        return "未返回"
+    return f"{score * 100:.1f}%"
+
+
+def _format_subtype_probabilities(value: Any, *, top_n: int = 6) -> str:
+    if not isinstance(value, dict) or not value:
+        return "未返回亚型概率"
+    items: list[tuple[str, float]] = []
+    for key, raw_score in value.items():
+        score = _confidence(raw_score)
+        if score is not None:
+            items.append((str(key), score))
+    if not items:
+        return "未返回亚型概率"
+    items.sort(key=lambda item: (item[0] != "any", -item[1]))
+    return "，".join(
+        f"{SUBTYPE_LABELS.get(key, key)}{score * 100:.1f}%"
+        for key, score in items[:top_n]
+    )
+
+
 def _build_structured_findings(quality_control: dict[str, Any], lesion_analysis: dict[str, Any]) -> dict[str, Any]:
     severity = str(quality_control.get("severity") or "unknown")
     affected_slices = quality_control.get("affected_slices") or quality_control.get("artifact_slices") or []
@@ -112,8 +151,14 @@ def _build_structured_findings(quality_control: dict[str, Any], lesion_analysis:
         raw_slices = item.get("slice_range") or item.get("slices") or item.get("slice_indices")
         lesion = {
             "lesion_type": item.get("lesion_type") or "unknown",
+            "lesion_label": LESION_TYPE_LABELS.get(str(item.get("lesion_type") or ""), str(item.get("display_name") or item.get("lesion_type") or "unknown")),
             "detected": bool(item.get("detected")),
             "confidence": _confidence(item.get("confidence")),
+            "positive_probability_text": _format_probability(item.get("confidence")),
+            "decision_threshold": _confidence(item.get("decision_threshold")),
+            "decision_threshold_text": _format_probability(item.get("decision_threshold")),
+            "subtype_probabilities": item.get("subtype_probabilities") or {},
+            "subtype_probability_text": _format_subtype_probabilities(item.get("subtype_probabilities")),
             "location": item.get("location") or item.get("anatomy") or item.get("region") or "模型未返回明确部位",
             "slice_range": raw_slices or [],
             "slice_range_text": _format_slices(raw_slices),
@@ -151,13 +196,20 @@ def _professional_sections(structured: dict[str, Any]) -> tuple[list[str], list[
     if lesions:
         for lesion in lesions:
             confidence = lesion.get("confidence")
-            confidence_text = f"置信度{confidence:.2f}" if isinstance(confidence, float) else "置信度未返回"
+            confidence_text = (
+                f"出血阳性概率{lesion.get('positive_probability_text')}（原始模型置信度{confidence:.2f}）"
+                if isinstance(confidence, float)
+                else "出血阳性概率未返回"
+            )
+            threshold_text = f"，判定阈值{lesion.get('decision_threshold_text')}" if lesion.get("decision_threshold") is not None else ""
             detected_text = "疑似阳性检出" if lesion.get("detected") else "未提示明确阳性检出"
             findings.append(
                 "AI检出结果："
-                f"{lesion.get('lesion_type', 'unknown')} {detected_text}，"
+                f"{lesion.get('lesion_label', 'unknown')} {detected_text}，"
                 f"部位：{lesion.get('location')}，层面：{lesion.get('slice_range_text')}，"
-                f"{confidence_text}；检出依据：{lesion.get('evidence')}"
+                f"{confidence_text}{threshold_text}；"
+                f"亚型概率：{lesion.get('subtype_probability_text')}；"
+                f"检出依据：{lesion.get('evidence')}"
             )
             if lesion.get("detected"):
                 impression.append(
@@ -166,7 +218,12 @@ def _professional_sections(structured: dict[str, Any]) -> tuple[list[str], list[
                     f"请重点复核{lesion.get('slice_range_text')}及相邻层面。"
                 )
             else:
-                impression.append("诊断辅助意见：AI辅助分析未提示明确阳性征象；如临床症状与影像不一致，仍建议结合原始图像复核。")
+                impression.append(
+                    "诊断辅助意见："
+                    f"当前出血阳性概率{lesion.get('positive_probability_text')}，"
+                    "低于模型判定阈值，AI辅助分析未提示明确阳性征象；"
+                    "如临床症状与影像不一致，仍建议结合原始图像复核。"
+                )
     else:
         findings.append("AI检出结果：病灶模型未返回可结构化的检出项。")
         impression.append("诊断辅助意见：当前 AI 结果不足以形成明确辅助倾向，请医生完成原始影像判读。")

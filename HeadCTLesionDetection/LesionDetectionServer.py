@@ -31,6 +31,13 @@ try:
         HEMORRHAGE_MATURE_CANDIDATE_PATHS,
         HEMORRHAGE_MODEL_PROVIDER,
         HOST,
+        ICHSEG_ENABLED,
+        ICHSEG_CHECKPOINT,
+        ICHSEG_INFERENCE_SHAPE,
+        ICHSEG_MANIFEST,
+        ICHSEG_PLANS,
+        ICHSEG_RUNTIME_STATUS,
+        ICHSEG_THRESHOLD,
         LESION_MODE,
         MODEL_SUPPORTED_LESIONS,
         MODULE_NAME,
@@ -38,13 +45,17 @@ try:
         OUTPUT_ROOT,
         PORT,
         VINBIGDATA_CHECKPOINT,
+        VINBIGDATA_CALIBRATION_PATH,
         VINBIGDATA_IMAGE_SIZE,
         VINBIGDATA_MAX_SLICES,
+        VINBIGDATA_SAMPLING_OFFSETS,
         VINBIGDATA_THRESHOLD,
+        VINBIGDATA_TTA_FLIP,
         SUPPORTED_LESIONS,
     )
     from .task_store import api_error, create_task_record, mark_failed, mark_running, mark_success, read_task_record, task_dir, write_json
     from .models.hemorrhage.infer import predict_hemorrhage, predict_vinbigdata_hemorrhage
+    from .models.hemorrhage.ichseg_nnunet_runtime import predict_ichseg_nnunet
 except ImportError:  # pragma: no cover - direct script fallback.
     from config import (
         API_PREFIX,
@@ -58,6 +69,13 @@ except ImportError:  # pragma: no cover - direct script fallback.
         HEMORRHAGE_MATURE_CANDIDATE_PATHS,
         HEMORRHAGE_MODEL_PROVIDER,
         HOST,
+        ICHSEG_ENABLED,
+        ICHSEG_CHECKPOINT,
+        ICHSEG_INFERENCE_SHAPE,
+        ICHSEG_MANIFEST,
+        ICHSEG_PLANS,
+        ICHSEG_RUNTIME_STATUS,
+        ICHSEG_THRESHOLD,
         LESION_MODE,
         MODEL_SUPPORTED_LESIONS,
         MODULE_NAME,
@@ -65,13 +83,17 @@ except ImportError:  # pragma: no cover - direct script fallback.
         OUTPUT_ROOT,
         PORT,
         VINBIGDATA_CHECKPOINT,
+        VINBIGDATA_CALIBRATION_PATH,
         VINBIGDATA_IMAGE_SIZE,
         VINBIGDATA_MAX_SLICES,
+        VINBIGDATA_SAMPLING_OFFSETS,
         VINBIGDATA_THRESHOLD,
+        VINBIGDATA_TTA_FLIP,
         SUPPORTED_LESIONS,
     )
     from task_store import api_error, create_task_record, mark_failed, mark_running, mark_success, read_task_record, task_dir, write_json
     from models.hemorrhage.infer import predict_hemorrhage, predict_vinbigdata_hemorrhage
+    from models.hemorrhage.ichseg_nnunet_runtime import predict_ichseg_nnunet
 
 
 class LesionErrorCode:
@@ -187,8 +209,28 @@ def checkpoint_status() -> dict[str, Any]:
                 "image_size": VINBIGDATA_IMAGE_SIZE,
                 "max_slices": VINBIGDATA_MAX_SLICES,
                 "threshold": VINBIGDATA_THRESHOLD,
+                "calibration_path": str(VINBIGDATA_CALIBRATION_PATH) if VINBIGDATA_CALIBRATION_PATH else None,
+                "calibration_exists": VINBIGDATA_CALIBRATION_PATH.exists() if VINBIGDATA_CALIBRATION_PATH else False,
+                "sampling_offsets": VINBIGDATA_SAMPLING_OFFSETS,
+                "tta_flip": VINBIGDATA_TTA_FLIP,
             },
-        }
+        },
+        "hemorrhage_segmentation": {
+            "provider": "ichseg_rank_nnunet",
+            "task_type": "intracranial_hemorrhage_segmentation",
+            "enabled": ICHSEG_ENABLED,
+            "checkpoint": str(ICHSEG_CHECKPOINT),
+            "checkpoint_exists": Path(ICHSEG_CHECKPOINT).exists(),
+            "plans": str(ICHSEG_PLANS),
+            "plans_exists": Path(ICHSEG_PLANS).exists(),
+            "manifest": str(ICHSEG_MANIFEST),
+            "manifest_exists": Path(ICHSEG_MANIFEST).exists(),
+            "checkpoint_provenance": "mature_public_external",
+            "checkpoint_fallback_used": False,
+            "runtime_status": ICHSEG_RUNTIME_STATUS,
+            "inference_shape": list(ICHSEG_INFERENCE_SHAPE),
+            "threshold": ICHSEG_THRESHOLD,
+        },
     }
 
 
@@ -322,6 +364,9 @@ def build_model_results(input_path: Path, quality_context: dict[str, Any], reque
                         threshold=VINBIGDATA_THRESHOLD,
                         image_size=VINBIGDATA_IMAGE_SIZE,
                         max_slices=VINBIGDATA_MAX_SLICES,
+                        sampling_offsets=tuple(VINBIGDATA_SAMPLING_OFFSETS),
+                        tta_flip=VINBIGDATA_TTA_FLIP,
+                        calibration_path=VINBIGDATA_CALIBRATION_PATH,
                     )
                     result.update(
                         {
@@ -368,6 +413,107 @@ def build_model_results(input_path: Path, quality_context: dict[str, Any], reque
     return results
 
 
+def should_run_ichseg_segmentation() -> bool:
+    return (
+        ICHSEG_ENABLED
+        and Path(ICHSEG_CHECKPOINT).exists()
+        and Path(ICHSEG_PLANS).exists()
+    )
+
+
+def merge_segmentation_result(classification_result: dict[str, Any], segmentation_result: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(classification_result)
+    classification_confidence = float(classification_result.get("confidence") or 0.0)
+    segmentation_confidence = float(segmentation_result.get("confidence") or 0.0)
+    segmentation_detected = bool(segmentation_result.get("detected"))
+    classification_detected = bool(classification_result.get("detected"))
+    final_detected = bool(classification_detected or segmentation_detected)
+    if segmentation_detected:
+        confidence_band = "high_positive" if segmentation_confidence >= 0.75 else "borderline_positive"
+        report_suggestion = (
+            f"{segmentation_result.get('report_suggestion', '')} "
+            f"分类模型 any 概率为 {classification_confidence:.1%}，作为辅助参考；"
+            "最终影像判断请优先结合分割 mask、三向预览和原始 CT 层面复核。"
+        ).strip()
+    elif classification_detected:
+        confidence_band = classification_result.get("confidence_band") or "borderline_positive"
+        report_suggestion = classification_result.get("report_suggestion", "")
+    else:
+        confidence_band = classification_result.get("confidence_band") or "high_negative"
+        report_suggestion = classification_result.get("report_suggestion", "")
+    merged.update(
+        {
+            "detected": final_detected,
+            "confidence": max(classification_confidence, segmentation_confidence),
+            "confidence_band": confidence_band,
+            "classification_confidence": classification_confidence,
+            "segmentation_confidence": segmentation_confidence,
+            "segmentation": segmentation_result,
+            "severity": segmentation_result.get("severity") or classification_result.get("severity"),
+            "affected_slices": segmentation_result.get("affected_slices") or classification_result.get("affected_slices", []),
+            "locations": segmentation_result.get("locations") or classification_result.get("locations", []),
+            "bbox": segmentation_result.get("bbox") or classification_result.get("bbox", []),
+            "mask_url": segmentation_result.get("mask_url"),
+            "preview_urls": segmentation_result.get("preview_urls") or {},
+            "task_type": "classification_plus_segmentation",
+            "segmentation_model_name": segmentation_result.get("model_name"),
+            "segmentation_provider": segmentation_result.get("provider"),
+            "segmentation_runtime_status": segmentation_result.get("runtime_status"),
+            "segmentation_checkpoint_path": segmentation_result.get("checkpoint_path"),
+            "segmentation_checkpoint_provenance": segmentation_result.get("checkpoint_provenance"),
+            "segmentation_checkpoint_fallback_used": segmentation_result.get("checkpoint_fallback_used"),
+            "positive_voxel_count": segmentation_result.get("positive_voxel_count"),
+            "positive_voxel_ratio": segmentation_result.get("positive_voxel_ratio"),
+        }
+    )
+    warnings = list(
+        dict.fromkeys(
+            [
+                *(classification_result.get("warnings") or []),
+                *(segmentation_result.get("warnings") or []),
+            ]
+        )
+    )
+    merged["warnings"] = warnings
+    merged["report_suggestion"] = report_suggestion
+    return merged
+
+
+def enrich_results_with_ichseg(
+    *,
+    input_path: Path,
+    task_output_dir: Path,
+    task_id: str,
+    quality_context: dict[str, Any],
+    model_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not should_run_ichseg_segmentation():
+        return model_results
+    url_prefix = f"{API_PREFIX}/files/{task_id}"
+    segmentation_result = predict_ichseg_nnunet(
+        nifti_path=input_path,
+        checkpoint_path=Path(ICHSEG_CHECKPOINT),
+        plans_path=Path(ICHSEG_PLANS),
+        output_dir=task_output_dir,
+        url_prefix=url_prefix,
+        device=HEMORRHAGE_DEVICE,
+        inference_shape=ICHSEG_INFERENCE_SHAPE,
+        threshold=ICHSEG_THRESHOLD,
+        quality_context=quality_context,
+    )
+    enriched: list[dict[str, Any]] = []
+    merged = False
+    for result in model_results:
+        if result.get("lesion_type") == "intracranial_hemorrhage":
+            enriched.append(merge_segmentation_result(result, segmentation_result))
+            merged = True
+        else:
+            enriched.append(result)
+    if not merged:
+        enriched.append(segmentation_result)
+    return enriched
+
+
 def run_mock_inference(task_id: str, quality_context: dict[str, Any], requested_lesions: list[str]) -> None:
     started = time.perf_counter()
     try:
@@ -395,6 +541,13 @@ def run_model_inference(task_id: str, quality_context: dict[str, Any], requested
         task_record = read_task_record(OUTPUT_ROOT, task_id)
         input_path = task_dir(OUTPUT_ROOT, task_id) / str(task_record["input_file"])
         model_results = build_model_results(input_path, quality_context, requested_lesions)
+        model_results = enrich_results_with_ichseg(
+            input_path=input_path,
+            task_output_dir=task_dir(OUTPUT_ROOT, task_id),
+            task_id=task_id,
+            quality_context=quality_context,
+            model_results=model_results,
+        )
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         result = build_lesion_result(
             task_id=task_id,
@@ -518,6 +671,23 @@ async def get_lesion_result(task_id: str):
     if not path.exists():
         raise api_error(404, LesionErrorCode.RESULT_NOT_FOUND, "病灶识别结果不存在")
     return FileResponse(path, media_type="application/json", filename=path.name)
+
+
+@app.get(f"{API_PREFIX}/files/{{task_id}}/{{filename}}")
+async def get_lesion_file(task_id: str, filename: str):
+    safe_name = Path(filename).name
+    if safe_name != filename or safe_name not in {
+        "lesion_mask.nii.gz",
+        "lesion_preview_axial.png",
+        "lesion_preview_coronal.png",
+        "lesion_preview_sagittal.png",
+    }:
+        raise api_error(400, "INVALID_FILE_NAME", "非法文件名")
+    path = task_dir(OUTPUT_ROOT, task_id) / safe_name
+    if not path.exists():
+        raise api_error(404, "FILE_NOT_FOUND", "文件不存在")
+    media_type = "image/png" if safe_name.endswith(".png") else "application/gzip"
+    return FileResponse(path, media_type=media_type, filename=safe_name)
 
 
 if __name__ == "__main__":

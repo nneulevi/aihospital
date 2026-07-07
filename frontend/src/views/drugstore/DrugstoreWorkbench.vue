@@ -10,14 +10,19 @@
       <el-col :xs="24" :md="16">
         <el-table :data="inventory" stripe border v-loading="loading">
           <el-table-column prop="drugId" label="药品ID" width="90" />
-          <el-table-column prop="drugName" label="药品" min-width="150" />
-          <el-table-column prop="drugFormat" label="规格" min-width="120" />
+          <el-table-column prop="drugCode" label="编码" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="drugName" label="药品" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="drugFormat" label="规格" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="drugUnit" label="单位" width="80" />
           <el-table-column prop="stockNum" label="库存" width="90">
             <template #default="{ row }">
               <el-tag :type="row.alert ? 'danger' : 'success'">{{ row.stockNum }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="drugPrice" label="单价" width="100" />
+          <el-table-column label="单价" width="110">
+            <template #default="{ row }">¥{{ formatMoney(row.drugPrice) }}</template>
+          </el-table-column>
+          <el-table-column prop="manufacturer" label="厂家" min-width="160" show-overflow-tooltip />
           <el-table-column label="操作" width="220">
             <template #default="{ row }">
               <el-button size="small" @click="openStockIn(row)">入库</el-button>
@@ -163,6 +168,8 @@ const refundPrescription = async () => {
   ElMessage.success('退药完成')
   await loadAll()
 }
+
+const formatMoney = (value?: number) => Number(value || 0).toFixed(2)
 
 onMounted(loadAll)
 </script>

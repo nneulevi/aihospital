@@ -9,4 +9,5 @@ public class ConsultationRequestDTO {
     private String symptoms;
     
     private Integer patientId;
+    private String conversationId;
 }

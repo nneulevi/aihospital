@@ -51,10 +51,11 @@
 
     <!-- 分析中状态 -->
     <div v-else-if="analyzing" class="loading-area">
-      <van-loading type="spinner" size="48px" color="#F4A261" />
+      <van-loading type="spinner" size="48px" color="#4CAF50" />
       <div class="loading-text">🤖 AI正在分析您的症状...</div>
-      <van-progress :percentage="analysisProgress" stroke-width="4" color="#F4A261" />
+      <van-progress :percentage="analysisProgress" stroke-width="4" color="#4CAF50" />
       <div class="loading-hint">{{ loadingHint }}</div>
+      <div v-if="aiStreamText" class="stream-preview">{{ aiStreamText }}</div>
     </div>
 
     <!-- 结果展示状态 -->
@@ -73,6 +74,12 @@
         </div>
         <div class="card-content">
           <div class="suggestion-text">{{ aiSuggestion }}</div>
+          <ul v-if="recommendedDepts.length" class="reason-list">
+            <li v-for="dept in recommendedDepts" :key="`reason-${dept.id}`">
+              <strong>{{ dept.name }}</strong>
+              <span>{{ dept.reason || '根据症状与就诊需求匹配' }}</span>
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -93,7 +100,7 @@
               <div class="dept-match">匹配度 {{ dept.matchRate }}%</div>
             </div>
             <div class="dept-progress">
-              <van-progress :percentage="dept.matchRate" stroke-width="6" color="#F4A261" />
+              <van-progress :percentage="dept.matchRate" stroke-width="6" color="#4CAF50" />
             </div>
           </div>
         </div>
@@ -146,8 +153,9 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { triage } from '@/api'
-import type { ConsultationRequestDTO, ConsultationResponseVO } from '@/api/model'
+import { getDoctors, triage, triageStream } from '@/api'
+import type { ConsultationResponseVO, DoctorListVO } from '@/api/model'
+import dayjs from 'dayjs'
 
 const router = useRouter()
 
@@ -157,6 +165,8 @@ const analyzing = ref(false)
 const analyzed = ref(false)
 const analysisProgress = ref(0)
 const loadingHint = ref('正在理解您的症状...')
+const aiStreamText = ref('')
+const streamedConclusion = ref('')
 const aiSuggestion = ref('')
 const recommendedDepts = ref<any[]>([])
 const recommendedDoctors = ref<any[]>([])
@@ -207,60 +217,135 @@ const startAnalysis = async () => {
   }
 
   analyzing.value = true
+  analyzed.value = true
   analysisProgress.value = 0
-
-  const hints = ['正在理解您的症状...', '分析可能的病因...', '匹配最佳科室...', '推荐合适的医生...']
-  let step = 0
-
-  const timer = setInterval(() => {
-    step++
-    analysisProgress.value = step * 25
-    loadingHint.value = hints[step - 1] || '分析完成'
-    if (step >= 4) {
-      clearInterval(timer)
-      loadRecommendations(content)
-    }
-  }, 800)
+  aiStreamText.value = ''
+  streamedConclusion.value = ''
+  loadingHint.value = '正在建立 AI 流式连接...'
+  await loadRecommendations(content)
 }
 
 const loadRecommendations = async (content: string) => {
+  let success = false
   try {
-    const res = await triage({ symptoms: content })
-    aiSuggestion.value = `根据您描述的症状，建议优先考虑「${res.data?.recommendations?.[0]?.deptName || '相关科室'}」就诊。${res.data?.recommendations?.[0]?.reason || ''}`
-
-    recommendedDepts.value = (res.data?.recommendations || []).map((r: any) => ({
-      id: r.deptId,
-      name: r.deptName,
-      matchRate: Math.round((r.confidence || 0) * 100)
-    }))
-
-    recommendedDoctors.value = [
+    let finalPayload: any = null
+    await triageStream(
+      { symptoms: content },
       {
-        id: 101,
-        deptId: res.data?.recommendations?.[0]?.deptId || 2,
-        name: '张敏',
-        title: '主任医师',
-        skill: '呼吸道感染、慢性支气管炎、哮喘',
-        morningSlots: 3,
-        afternoonSlots: 5
+        onEvent: ({ event, data }) => {
+          if (event === 'memory_loaded') {
+            analysisProgress.value = 20
+          } else if (event === 'rag_retrieved') {
+            analysisProgress.value = 55
+          } else if (event === 'llm_generating') {
+            analysisProgress.value = 82
+          } else if (event === 'delta') {
+            aiStreamText.value += data?.text || ''
+            streamedConclusion.value += data?.text || ''
+          }
+          loadingHint.value = data?.message || loadingHint.value
+        },
+        onFinal: (data) => {
+          finalPayload = data?.data || data
+        },
+        onError: (data) => {
+          throw new Error(data?.message || 'AI分析失败')
+        },
       },
-      {
-        id: 102,
-        deptId: res.data?.recommendations?.[0]?.deptId || 2,
-        name: '李华',
-        title: '副主任医师',
-        skill: '肺炎、慢性阻塞性肺病、咳嗽',
-        morningSlots: 5,
-        afternoonSlots: 2
-      }
-    ]
+    )
 
+    if (!finalPayload) {
+      throw new Error('AI流式响应缺少最终结果')
+    }
+
+    await applyRecommendations(finalPayload)
+    success = true
+  } catch {
+    try {
+      loadingHint.value = '流式连接不可用，正在切换普通分析...'
+      const res = await triage({ symptoms: content })
+      await applyRecommendations(res.data || res)
+      success = true
+    } catch {
+      showToast('AI分析失败，请重试')
+    }
+  } finally {
+    analysisProgress.value = 100
     analyzing.value = false
-    analyzed.value = true
-  } catch (error) {
-    showToast('AI分析失败，请重试')
-    analyzing.value = false
+    analyzed.value = success
   }
+}
+
+const applyRecommendations = async (data: ConsultationResponseVO) => {
+  const recommendations = data?.recommendations || []
+  const primary = recommendations[0]
+  const diagnosisHint = (data as any)?.diagnosisHint || ''
+  const professionalText = streamedConclusion.value.trim()
+  aiSuggestion.value = professionalText || diagnosisHint || `根据您描述的症状，建议优先考虑「${primary?.deptName || '相关科室'}」就诊。${primary?.reason || '请结合持续时间、伴随症状和既往病史进一步就医评估。'}`
+
+  recommendedDepts.value = recommendations.map((r: any) => ({
+    id: r.deptId,
+    name: r.deptName,
+    matchRate: Math.round((r.confidence || 0) * 100),
+    reason: r.reason || '',
+  }))
+
+  recommendedDoctors.value = await loadAvailableDoctors(recommendations)
+  if (!recommendedDoctors.value.length) {
+    showToast('推荐科室当前暂无可预约号源，可进入挂号页查看其他日期')
+  }
+}
+
+const loadAvailableDoctors = async (recommendations: any[]) => {
+  const result: any[] = []
+  const candidateNoons = currentNoonFirst()
+  for (const recommendation of recommendations.slice(0, 3)) {
+    if (!recommendation?.deptId) continue
+    for (let dayOffset = 0; dayOffset < 7 && result.length < 4; dayOffset += 1) {
+      const visitDate = dayjs().add(dayOffset, 'day').format('YYYY-MM-DD')
+      for (const noon of candidateNoons) {
+        if (result.length >= 4) break
+        const res = await getDoctors({
+          query: {
+            deptId: recommendation.deptId,
+            visitDate,
+            noon,
+            pageNum: 1,
+            pageSize: 10,
+          },
+        }).catch(() => undefined)
+        const doctors = resolveRecords<DoctorListVO>(res)
+          .filter((doctor) => (doctor.remainingQuota || 0) > 0)
+        doctors.forEach((doctor) => {
+          if (result.some((item) => item.id === doctor.doctorId && item.visitDate === visitDate && item.noon === noon)) {
+            return
+          }
+          result.push({
+            id: doctor.doctorId,
+            deptId: recommendation.deptId,
+            deptName: recommendation.deptName,
+            name: doctor.doctorName || '医生',
+            title: doctor.titleLevel || '医师',
+            skill: doctor.specialty || `${doctor.deptName || recommendation.deptName || '相关科室'}门诊`,
+            morningSlots: noon === 'MORNING' ? doctor.remainingQuota || 0 : 0,
+            afternoonSlots: noon === 'AFTERNOON' ? doctor.remainingQuota || 0 : 0,
+            visitDate,
+            noon,
+          })
+        })
+      }
+    }
+  }
+  return result
+}
+
+const resolveRecords = <T,>(res: any): T[] => {
+  return res?.data?.records || res?.records || []
+}
+
+const currentNoonFirst = () => {
+  const hour = new Date().getHours()
+  return hour < 12 ? ['MORNING', 'AFTERNOON'] : ['AFTERNOON', 'MORNING']
 }
 
 const selectDept = (dept: any) => {
@@ -271,11 +356,15 @@ const selectDept = (dept: any) => {
 }
 
 const goToRegister = (doctorId: number, deptId?: number) => {
+  const doc = recommendedDoctors.value.find((item) => item.id === doctorId)
   router.push({
     name: 'Appointment',
     query: {
       doctorId: String(doctorId),
-      deptId: deptId ? String(deptId) : undefined
+      deptId: deptId ? String(deptId) : undefined,
+      deptName: doc?.deptName,
+      visitDate: doc?.visitDate,
+      noon: doc?.noon,
     }
   })
 }
@@ -286,6 +375,8 @@ const resetAnalysis = () => {
   selectedSymptoms.value = []
   recommendedDepts.value = []
   recommendedDoctors.value = []
+  streamedConclusion.value = ''
+  aiStreamText.value = ''
   analysisProgress.value = 0
 }
 </script>
@@ -293,7 +384,7 @@ const resetAnalysis = () => {
 <style lang="scss" scoped>
 .ai-inquiry {
   min-height: 100vh;
-  background: #FFF9F0;
+  background: #F5F7FA;
   padding: 16px;
   padding-bottom: 80px;
 }
@@ -310,7 +401,7 @@ const resetAnalysis = () => {
 .input-area .greeting .greeting-text {
   font-size: 20px;
   font-weight: 500;
-  color: #5C4B3A;
+  color: #1F2937;
 }
 .symptom-input-wrapper {
   position: relative;
@@ -325,14 +416,14 @@ const resetAnalysis = () => {
   right: 16px;
   bottom: 16px;
   font-size: 24px;
-  color: #F4A261;
+  color: #4CAF50;
 }
 .symptom-tags-section {
   margin: 24px 0;
 }
 .symptom-tags-section .section-title {
   font-size: 14px;
-  color: #8B7A6B;
+  color: #64748B;
   margin-bottom: 8px;
 }
 .symptom-tags {
@@ -347,15 +438,15 @@ const resetAnalysis = () => {
   background: white;
 }
 .symptom-tags .van-tag--primary {
-  background: #F4A261;
+  background: #4CAF50;
   color: white;
 }
 .analyze-btn {
   margin-top: 24px;
   height: 48px;
   font-size: 16px;
-  background: #F4A261;
-  border-color: #F4A261;
+  background: #4CAF50;
+  border-color: #4CAF50;
 }
 
 .loading-area {
@@ -364,17 +455,32 @@ const resetAnalysis = () => {
 }
 .loading-area .loading-text {
   font-size: 18px;
-  color: #5C4B3A;
+  color: #1F2937;
   margin: 20px 0 16px;
 }
 .loading-area .loading-hint {
   font-size: 14px;
-  color: #8B7A6B;
+  color: #64748B;
   margin-top: 16px;
+}
+.loading-area .stream-preview {
+  margin-top: 14px;
+  padding: 12px 14px;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid #D8EEDB;
+  border-radius: 8px;
+  background: #F7FBF7;
+  color: #1F2937;
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .result-area .symptom-review {
-  background: #FAF3E8;
+  background: #F0F7F1;
   padding: 12px 16px;
   border-radius: 8px;
   margin-bottom: 16px;
@@ -384,21 +490,21 @@ const resetAnalysis = () => {
   font-size: 14px;
 }
 .result-area .symptom-review .review-label {
-  color: #8B7A6B;
+  color: #64748B;
 }
 .result-area .symptom-review .review-content {
   flex: 1;
-  color: #5C4B3A;
+  color: #1F2937;
   font-weight: 500;
 }
 .result-area .symptom-review .review-edit {
-  color: #F4A261;
+  color: #4CAF50;
   cursor: pointer;
 }
 
 .ai-suggestion-card {
-  background: linear-gradient(135deg, rgba(94, 96, 206, 0.08) 0%, rgba(94, 96, 206, 0.03) 100%);
-  border-left: 4px solid #5E60CE;
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.10) 0%, rgba(76, 175, 80, 0.04) 100%);
+  border-left: 4px solid #4CAF50;
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 20px;
@@ -415,12 +521,25 @@ const resetAnalysis = () => {
 .ai-suggestion-card .card-header .card-title {
   font-size: 16px;
   font-weight: 500;
-  color: #5E60CE;
+  color: #4CAF50;
 }
 .ai-suggestion-card .suggestion-text {
   font-size: 14px;
   line-height: 1.6;
-  color: #5C4B3A;
+  color: #1F2937;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-suggestion-card .reason-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.ai-suggestion-card .reason-list strong {
+  margin-right: 6px;
+  color: #1F2937;
 }
 
 .recommend-section {
@@ -433,12 +552,12 @@ const resetAnalysis = () => {
   margin-bottom: 12px;
   font-size: 16px;
   font-weight: 500;
-  color: #5C4B3A;
+  color: #1F2937;
 }
 .recommend-section .section-title .section-hint {
   font-size: 12px;
   font-weight: 400;
-  color: #8B7A6B;
+  color: #64748B;
 }
 .dept-list .dept-item {
   background: white;
@@ -448,7 +567,7 @@ const resetAnalysis = () => {
   cursor: pointer;
 }
 .dept-list .dept-item:active {
-  background: #FAF3E8;
+  background: #F0F7F1;
 }
 .dept-list .dept-item .dept-info {
   display: flex;
@@ -461,7 +580,7 @@ const resetAnalysis = () => {
 }
 .dept-list .dept-item .dept-info .dept-match {
   font-size: 14px;
-  color: #F4A261;
+  color: #4CAF50;
 }
 
 .doctor-list .doctor-card {
@@ -475,12 +594,12 @@ const resetAnalysis = () => {
 .doctor-list .doctor-card .doctor-avatar {
   width: 60px;
   height: 60px;
-  background: #FAF3E8;
+  background: #F0F7F1;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #F4A261;
+  color: #4CAF50;
   flex-shrink: 0;
 }
 .doctor-list .doctor-card .doctor-info {
@@ -489,16 +608,16 @@ const resetAnalysis = () => {
 .doctor-list .doctor-card .doctor-info .doctor-name {
   font-size: 16px;
   font-weight: 500;
-  color: #5C4B3A;
+  color: #1F2937;
 }
 .doctor-list .doctor-card .doctor-info .doctor-title {
   font-size: 12px;
-  color: #F4A261;
+  color: #4CAF50;
   margin: 4px 0;
 }
 .doctor-list .doctor-card .doctor-info .doctor-skill {
   font-size: 12px;
-  color: #8B7A6B;
+  color: #64748B;
   margin-bottom: 4px;
 }
 .doctor-list .doctor-card .doctor-info .doctor-slots {
@@ -507,11 +626,11 @@ const resetAnalysis = () => {
 }
 .doctor-list .doctor-card .doctor-info .doctor-slots .slot-badge {
   font-size: 12px;
-  color: #8B7A6B;
+  color: #64748B;
 }
 .doctor-list .doctor-card .doctor-info .doctor-slots .slot-count {
   font-size: 12px;
-  color: #8CB369;
+  color: #4CAF50;
 }
 
 .footer-note {
@@ -521,6 +640,6 @@ const resetAnalysis = () => {
   right: 0;
   text-align: center;
   font-size: 12px;
-  color: #C4B8A8;
+  color: #94A3B8;
 }
 </style>

@@ -3,7 +3,7 @@
     <van-nav-bar title="电子病历" />
     <section class="record-list">
       <button v-for="record in records" :key="record.registerId" type="button" class="record-card">
-        <span class="tag">{{ record.visitState || '已就诊' }}</span>
+        <span class="tag">{{ record.visitStateName || formatState(record.visitState) }}</span>
         <strong>{{ record.doctorName || '接诊医生' }} · {{ record.deptName || '门诊科室' }}</strong>
         <span>{{ formatDate(record.visitDate) }}</span>
         <p>{{ record.diagnosis || '医生诊疗记录已归档，可在详情中继续查看。' }}</p>
@@ -23,6 +23,14 @@ import type { PatientRecordListVO } from '@/api/model'
 const userStore = useUserStore()
 const records = ref<PatientRecordListVO[]>([])
 const formatDate = (value?: string) => value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '时间待确认'
+const formatState = (state?: string) => {
+  if (state === 'REGISTERED') return '待就诊'
+  if (state === 'DOCTOR_RECEIVED' || state === 'ONGOING') return '就诊中'
+  if (state === 'DIAGNOSIS_DONE') return '已确诊'
+  if (state === 'FINISHED') return '已完成'
+  if (state === 'REFUNDED' || state === 'CANCELLED') return '已取消'
+  return '已就诊'
+}
 
 const loadRecords = async () => {
   if (!userStore.patientId) return

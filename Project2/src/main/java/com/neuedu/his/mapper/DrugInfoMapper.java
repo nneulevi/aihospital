@@ -23,7 +23,25 @@ public interface DrugInfoMapper {
                                      @Param("drugType") String drugType, 
                                      @Param("stockAlert") Integer stockAlert);
 
-    @Select("SELECT * FROM drug_info WHERE stock_num <= #{threshold} ORDER BY stock_num ASC, drug_name ASC")
+    @Select("SELECT * FROM drug_info WHERE stock_num <= #{threshold} " +
+            "AND drug_name NOT LIKE 'Extended%' " +
+            "AND drug_name NOT LIKE 'User Logic%' " +
+            "AND drug_name NOT LIKE '%E2E%' " +
+            "AND drug_name NOT LIKE '%项目验收%' " +
+            "AND drug_name NOT LIKE '%验收%' " +
+            "AND drug_name NOT LIKE '%测试%' " +
+            "AND drug_name NOT LIKE '业务联动%' " +
+            "AND drug_code NOT LIKE 'EXT-%' " +
+            "AND drug_code NOT LIKE 'ULA-%' " +
+            "AND drug_code NOT LIKE 'BIZFLOW-%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '%E2E%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '%User Logic%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '%Extended%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '%项目验收%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '%验收%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '%测试%' " +
+            "AND COALESCE(manufacturer, '') NOT LIKE '业务联动%' " +
+            "ORDER BY stock_num ASC, drug_name ASC")
     List<DrugInfo> selectLowStock(@Param("threshold") Integer threshold);
 
     @Insert("INSERT INTO drug_info(drug_code, drug_name, drug_format, drug_unit, stock_num, drug_price, manufacturer, drug_type) " +

@@ -17,7 +17,7 @@ public class ScheduleSourceCreateDTO {
     @NotNull
     private String noon;
     @NotNull
-    @Min(0)
+    @Min(1)
     private Integer registQuota;
     private String sourceType = "MANUAL";
 }

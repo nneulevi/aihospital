@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class ConsultationResponseVO {
     private Integer consultationId;
+    private String diagnosisHint;
     private List<DeptRecommendation> recommendations;
 
     @Data

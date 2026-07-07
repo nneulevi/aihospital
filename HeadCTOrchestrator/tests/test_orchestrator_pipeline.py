@@ -316,10 +316,10 @@ def test_orchestrator_pipeline_with_mock_lesion_detection() -> None:
             assert result["lesion_analysis"]["enabled"] is True
             assert result["lesion_analysis"]["status"] == "success"
             assert result["lesion_analysis"]["results"][0]["lesion_type"] == "intracranial_hemorrhage"
-            assert result["quality_control"]["artifact_reduction"]["model_name"] in {"InDuDoNet", None}
-            assert result["quality_control"]["lesion_input_policy"]["used_input"] == "original_ct"
-            assert result["quality_control"]["lesion_input_policy"]["corrected_ct_used"] is False
-            assert any("InDuDoNet" in warning or "校正" in warning for warning in result["warnings"])
+            assert result["quality_control"]["artifact_reduction"]["model_name"] in {"mask_guided_image_domain_mar", "InDuDoNet", None}
+            assert result["quality_control"]["lesion_input_policy"]["used_input"] == "corrected_ct"
+            assert result["quality_control"]["lesion_input_policy"]["corrected_ct_used"] is True
+            assert not any("未接入" in warning or "使用原始 CT" in warning for warning in result["warnings"])
             assert result["report_assist"]["can_enter_report"] is True
             assert "未见明确颅内出血征象" in result["report_assist"]["lesion_text"]
     finally:
@@ -334,15 +334,15 @@ def test_ai_imaging_status_describes_project_ready_chain_without_overclaiming() 
             "model_version": "local-trained",
             "artifact_reduction": {
                 "registered": True,
-                "executable": False,
-                "model_name": "InDuDoNet",
-                "correction_status": "checkpoint_registered_not_executable",
+                "executable": True,
+                "model_name": "mask_guided_image_domain_mar",
+                "correction_status": "executed",
                 "use_for_lesion_input": False,
             },
             "lesion_input_policy": {
                 "used_input": "original_ct",
                 "corrected_ct_used": False,
-                "artifact_reduction_status": "checkpoint_registered_not_executable",
+                "artifact_reduction_status": "executed",
             },
         },
         lesion_analysis={
@@ -365,8 +365,9 @@ def test_ai_imaging_status_describes_project_ready_chain_without_overclaiming() 
 
     assert status["project_use_status"] == "ready_for_project_demo"
     assert status["workflow_ready"] is True
-    assert status["artifact_reduction"]["status"] == "registered_not_executable"
+    assert status["artifact_reduction"]["status"] == "executable"
     assert status["lesion_model"]["task_type"] == "classification"
+    assert status["lesion_model"]["scope_note"] == "classification_result_without_segmentation_mask"
     assert status["lesion_model"]["checkpoint_fallback_used"] is False
     assert status["lesion_model"]["outputs_segmentation"] is False
     assert status["diagnosis_output_policy"]["final_diagnosis_owner"] == "doctor"

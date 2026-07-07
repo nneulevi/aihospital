@@ -4,7 +4,7 @@
 
     <div class="user-card">
       <div class="user-avatar">
-        <van-icon name="user-circle-o" size="64" color="#F4A261" />
+        <van-icon name="user-circle-o" size="64" color="#4CAF50" />
       </div>
       <div v-if="isLoggedIn" class="user-info">
         <div class="user-name">{{ userStore.userName || '患者用户' }}</div>
@@ -111,7 +111,7 @@ const handleLogout = () => {
     title: '提示',
     message: '确定要退出登录吗？',
     showCancelButton: true,
-    confirmButtonColor: '#E76F51'
+    confirmButtonColor: '#4CAF50'
   }).then(() => {
     userStore.logout()
     showToast('已退出登录')
@@ -124,21 +124,21 @@ watch(() => userStore.patientId, loadSummary)
 </script>
 
 <style lang="scss" scoped>
-.profile-page { min-height: 100vh; background: #FFF9F0; padding-bottom: 20px; }
-.user-card { background: white; margin: 12px; padding: 32px 16px; border-radius: 8px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.profile-page { min-height: 100vh; background: #F5F7FA; padding-bottom: 20px; }
+.user-card { background: white; margin: 12px; padding: 32px 16px; border-radius: 8px; text-align: center; box-shadow: 0 1px 8px rgba(31,42,55,.06); }
 .user-avatar { margin-bottom: 12px; }
-.user-info .user-name { font-size: 18px; font-weight: 500; color: #5C4B3A; }
-.user-info .user-phone { font-size: 14px; color: #8B7A6B; margin-top: 4px; }
-.user-info .user-tip { font-size: 14px; color: #8B7A6B; margin-top: 4px; }
-.summary-card { background: white; margin: 12px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid #E8DCC8; }
+.user-info .user-name { font-size: 18px; font-weight: 500; color: #1A1A2E; }
+.user-info .user-phone { font-size: 14px; color: #687789; margin-top: 4px; }
+.user-info .user-tip { font-size: 14px; color: #687789; margin-top: 4px; }
+.summary-card { background: white; margin: 12px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 8px rgba(31,42,55,.06); }
+.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid #E6EBF2; }
 .summary-item { padding: 14px 6px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
-.summary-value { color: #F4A261; font-weight: 700; font-size: 16px; word-break: break-word; }
-.summary-label { color: #8B7A6B; font-size: 12px; }
-.latest-state { padding: 12px 16px; color: #8B7A6B; font-size: 13px; }
+.summary-value { color: #4CAF50; font-weight: 700; font-size: 16px; word-break: break-word; }
+.summary-label { color: #687789; font-size: 12px; }
+.latest-state { padding: 12px 16px; color: #687789; font-size: 13px; }
 .menu-group { background: white; margin: 12px; border-radius: 8px; overflow: hidden; }
-.menu-item { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #E8DCC8; cursor: pointer; &:last-child { border-bottom: none; } }
-.menu-label { flex: 1; margin-left: 12px; font-size: 14px; color: #5C4B3A; }
-.menu-arrow { color: #C4B8A8; }
+.menu-item { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #E6EBF2; cursor: pointer; &:last-child { border-bottom: none; } }
+.menu-label { flex: 1; margin-left: 12px; font-size: 14px; color: #1A1A2E; }
+.menu-arrow { color: #94A3B8; }
 .logout-btn { margin: 24px 12px; }
 </style>

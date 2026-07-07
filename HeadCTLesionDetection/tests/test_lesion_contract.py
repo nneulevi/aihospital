@@ -300,3 +300,55 @@ def test_vinbigdata_raw_resnet_checkpoint_runs_without_local_fallback() -> None:
     assert "subtype_probabilities" in result
     assert set(result["subtype_probabilities"]).issuperset({"any", "subdural"})
     assert 0.0 <= result["subtype_probabilities"]["any"] <= 1.0
+
+
+def test_ichseg_nnunet_segmentation_runtime_outputs_mask_and_preview() -> None:
+    assert SAMPLE_CT.exists(), f"missing smoke sample: {SAMPLE_CT}"
+    checkpoint = LESION_ROOT / "models" / "hemorrhage" / "external_weights" / "ichseg_rank_nnunet" / "fold_0" / "checkpoint_final.pth"
+    plans = LESION_ROOT / "models" / "hemorrhage" / "external_weights" / "ichseg_rank_nnunet" / "nnUNetPlans.json"
+    classifier_checkpoint = LESION_ROOT / "models" / "hemorrhage" / "runs" / "hemorrhage_v1" / "smoke_best.pt"
+    if not checkpoint.exists() or not plans.exists():
+        pytest.skip(f"ICHSeg nnU-Net checkpoint is not present: {checkpoint}")
+    original_values = {
+        "LESION_MODE": lesion_server.LESION_MODE,
+        "HEMORRHAGE_CHECKPOINT": lesion_server.HEMORRHAGE_CHECKPOINT,
+        "HEMORRHAGE_DEVICE": lesion_server.HEMORRHAGE_DEVICE,
+        "ICHSEG_ENABLED": lesion_server.ICHSEG_ENABLED,
+        "ICHSEG_INFERENCE_SHAPE": lesion_server.ICHSEG_INFERENCE_SHAPE,
+        "ICHSEG_THRESHOLD": lesion_server.ICHSEG_THRESHOLD,
+    }
+    lesion_server.LESION_MODE = "model"
+    lesion_server.HEMORRHAGE_CHECKPOINT = classifier_checkpoint
+    lesion_server.HEMORRHAGE_DEVICE = "cpu"
+    lesion_server.ICHSEG_ENABLED = True
+    lesion_server.ICHSEG_INFERENCE_SHAPE = (16, 128, 128)
+    lesion_server.ICHSEG_THRESHOLD = 0.5
+    try:
+        with TestClient(app) as client:
+            with SAMPLE_CT.open("rb") as file_obj:
+                response = client.post(
+                    "/api/head-ct-lesion/tasks",
+                    data={
+                        "requested_lesions": "hemorrhage",
+                        "quality_context": json.dumps({"severity": "mild"}, ensure_ascii=False),
+                    },
+                    files={"file": ("sample_ct_positive.nii.gz", file_obj, "application/octet-stream")},
+                )
+            assert response.status_code == 200
+            current = wait_for_task(client, response.json())
+            assert current["status"] == "success", current
+            result_response = client.get(current["result_url"])
+            assert result_response.status_code == 200
+            result = result_response.json()
+            lesion = result["results"][0]
+            assert lesion["task_type"] == "classification_plus_segmentation"
+            assert lesion["mask_url"].endswith("/lesion_mask.nii.gz")
+            assert lesion["preview_urls"]["axial"].endswith("/lesion_preview_axial.png")
+            assert lesion["segmentation_runtime_status"] == "executed_direct_network_forward"
+            assert lesion["segmentation_checkpoint_fallback_used"] is False
+            assert lesion["segmentation_checkpoint_provenance"] == "mature_public_external"
+            assert client.get(lesion["mask_url"]).status_code == 200
+            assert client.get(lesion["preview_urls"]["axial"]).status_code == 200
+    finally:
+        for key, value in original_values.items():
+            setattr(lesion_server, key, value)

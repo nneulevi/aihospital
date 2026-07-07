@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 public class DiagnosisServiceRealImpl implements DiagnosisService {
 
@@ -27,11 +28,13 @@ public class DiagnosisServiceRealImpl implements DiagnosisService {
     @Override
     public DiagnosisSuggestResponseVO suggest(DiagnosisSuggestRequestDTO request) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("medical_record_id", request.getMedicalRecordId());
+        if (request.getMedicalRecordId() != null) {
+            body.put("medical_record_id", request.getMedicalRecordId());
+        }
         body.put("symptoms", request.getSymptoms());
         body.put("history", request.getHistory());
         body.put("physique", request.getPhysique());
-        body.put("conversation_id", "medical_record:" + request.getMedicalRecordId() + ":diagnosis");
+        body.put("conversation_id", diagnosisConversationId(request));
         body.put("user_id", "doctor");
         body.put("role_scope", "doctor");
         body.put("memory_enabled", true);
@@ -40,26 +43,38 @@ public class DiagnosisServiceRealImpl implements DiagnosisService {
         List<DiagnosisSuggestResponseVO.Suggestion> suggestions = parseSuggestions(assist.get("suggestions"));
         String modelVersion = modelVersion(assist);
 
-        for (DiagnosisSuggestResponseVO.Suggestion item : suggestions) {
-            AiDiagnosisSuggestion entity = new AiDiagnosisSuggestion();
-            entity.setMedicalRecordId(request.getMedicalRecordId());
-            entity.setAiDiagnosis(item.getDiseaseName());
-            entity.setDiseaseId(parseDiseaseId(item.getDiseaseCode()));
-            entity.setConfidence(BigDecimal.valueOf(item.getConfidence() == null ? 0.0 : item.getConfidence()));
-            Map<String, Object> evidence = new LinkedHashMap<>();
-            evidence.put("evidence", item.getEvidence());
-            evidence.put("rag_context", assist.get("rag_context"));
-            evidence.put("llm_context", assist.get("llm_context"));
-            evidence.put("memory_context", assist.get("memory_context"));
-            evidence.put("task_id", assist.get("task_id"));
-            entity.setEvidenceBasis(JsonUtil.toJson(evidence));
-            entity.setAiModelVersion(modelVersion);
-            aiDiagnosisSuggestionMapper.insert(entity);
+        if (request.getMedicalRecordId() != null) {
+            for (DiagnosisSuggestResponseVO.Suggestion item : suggestions) {
+                AiDiagnosisSuggestion entity = new AiDiagnosisSuggestion();
+                entity.setMedicalRecordId(request.getMedicalRecordId());
+                entity.setAiDiagnosis(item.getDiseaseName());
+                entity.setDiseaseId(parseDiseaseId(item.getDiseaseCode()));
+                entity.setConfidence(BigDecimal.valueOf(item.getConfidence() == null ? 0.0 : item.getConfidence()));
+                Map<String, Object> evidence = new LinkedHashMap<>();
+                evidence.put("evidence", item.getEvidence());
+                evidence.put("rag_context", assist.get("rag_context"));
+                evidence.put("llm_context", assist.get("llm_context"));
+                evidence.put("memory_context", assist.get("memory_context"));
+                evidence.put("task_id", assist.get("task_id"));
+                entity.setEvidenceBasis(JsonUtil.toJson(evidence));
+                entity.setAiModelVersion(modelVersion);
+                aiDiagnosisSuggestionMapper.insert(entity);
+            }
         }
 
         DiagnosisSuggestResponseVO response = new DiagnosisSuggestResponseVO();
         response.setSuggestions(suggestions);
         return response;
+    }
+
+    private String diagnosisConversationId(DiagnosisSuggestRequestDTO request) {
+        if (request.getConversationId() != null && !request.getConversationId().isBlank()) {
+            return request.getConversationId();
+        }
+        if (request.getMedicalRecordId() != null) {
+            return "medical_record:" + request.getMedicalRecordId() + ":diagnosis";
+        }
+        return "standalone-diagnosis:" + UUID.randomUUID();
     }
 
     private List<DiagnosisSuggestResponseVO.Suggestion> parseSuggestions(Object value) {

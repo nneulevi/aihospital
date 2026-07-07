@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import numpy as np
 import SimpleITK as sitk
@@ -28,6 +28,7 @@ class VinBigDataLoadInfo:
     checkpoint_path: str
     missing_keys: list[str]
     unexpected_keys: list[str]
+    inference_strategy: Optional[dict[str, Any]] = None
 
 
 def resolve_device(device_arg: str) -> torch.device:
@@ -53,10 +54,14 @@ def read_volume(path: Path) -> np.ndarray:
     return volume
 
 
-def sample_slices(volume: np.ndarray, max_slices: int) -> np.ndarray:
+def sample_slices(volume: np.ndarray, max_slices: int, offset: float = 0.0) -> np.ndarray:
     if volume.shape[0] <= max_slices:
         return volume
-    indices = np.linspace(0, volume.shape[0] - 1, max_slices).round().astype(np.int64)
+    positions = np.linspace(0, volume.shape[0] - 1, max_slices)
+    if max_slices > 1:
+        step = (volume.shape[0] - 1) / (max_slices - 1)
+        positions = positions + offset * step
+    indices = np.clip(positions, 0, volume.shape[0] - 1).round().astype(np.int64)
     return volume[indices]
 
 
@@ -65,8 +70,10 @@ def preprocess_vinbigdata_volume(
     *,
     image_size: int = 512,
     max_slices: int = 64,
+    slice_offset: float = 0.0,
+    horizontal_flip: bool = False,
 ) -> torch.Tensor:
-    volume = sample_slices(read_volume(path), max_slices)
+    volume = sample_slices(read_volume(path), max_slices, offset=slice_offset)
     channels = [
         window_image(volume, center=40.0, width=80.0),
         window_image(volume, center=80.0, width=200.0),
@@ -76,6 +83,8 @@ def preprocess_vinbigdata_volume(
     tensor = torch.from_numpy(array)
     if tensor.shape[-2:] != (image_size, image_size):
         tensor = F.interpolate(tensor, size=(image_size, image_size), mode="bilinear", align_corners=False)
+    if horizontal_flip:
+        tensor = torch.flip(tensor, dims=[-1])
     return tensor
 
 
@@ -341,6 +350,8 @@ def predict_vinbigdata_probabilities(
     device: str = "auto",
     image_size: int = 512,
     max_slices: int = 64,
+    sampling_offsets: Sequence[float] = (0.0,),
+    tta_flip: bool = False,
 ) -> tuple[dict[str, float], VinBigDataLoadInfo]:
     resolved_device = resolve_device(device)
     model, load_info, metadata = load_vinbigdata_model(
@@ -349,14 +360,38 @@ def predict_vinbigdata_probabilities(
         image_size=image_size,
         max_slices=max_slices,
     )
-    image = preprocess_vinbigdata_volume(
-        nifti_path,
-        image_size=int(metadata.get("image_size", image_size)),
-        max_slices=int(metadata.get("max_slices", max_slices)),
-    )
+    offsets = [float(item) for item in sampling_offsets] or [0.0]
+    flip_flags = [False, True] if tta_flip else [False]
+    probability_rows: list[np.ndarray] = []
     with torch.inference_mode():
-        logits = model(image[None, ...].to(resolved_device, dtype=torch.float32))
-        probabilities = torch.sigmoid(aggregate_logits(logits)).detach().cpu().numpy().reshape(-1)
+        for offset in offsets:
+            for flip in flip_flags:
+                image = preprocess_vinbigdata_volume(
+                    nifti_path,
+                    image_size=int(metadata.get("image_size", image_size)),
+                    max_slices=int(metadata.get("max_slices", max_slices)),
+                    slice_offset=offset,
+                    horizontal_flip=flip,
+                )
+                logits = model(image[None, ...].to(resolved_device, dtype=torch.float32))
+                row = torch.sigmoid(aggregate_logits(logits)).detach().cpu().numpy().reshape(-1)
+                probability_rows.append(row)
+    probabilities = np.mean(np.stack(probability_rows, axis=0), axis=0)
+    strategy = {
+        "name": "tta_flip_multi_offset" if tta_flip or len(offsets) > 1 else "single_center_sampling",
+        "sampling_offsets": offsets,
+        "horizontal_flip": bool(tta_flip),
+        "variant_count": len(probability_rows),
+        "image_size": int(metadata.get("image_size", image_size)),
+        "max_slices": int(metadata.get("max_slices", max_slices)),
+    }
+    load_info = VinBigDataLoadInfo(
+        load_info.framework,
+        load_info.checkpoint_path,
+        load_info.missing_keys,
+        load_info.unexpected_keys,
+        strategy,
+    )
     return {
         label: float(probabilities[index])
         for index, label in enumerate(VINBIGDATA_CLASSES[: len(probabilities)])

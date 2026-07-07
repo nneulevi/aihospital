@@ -18,15 +18,19 @@ import os
 import uuid
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import httpx
 import psycopg
 from psycopg.rows import dict_row
 
+from project2_db_env import get_project2_db_dsn
 
+
+ROOT = Path(__file__).resolve().parents[1]
 PROJECT2 = os.getenv("PROJECT2_BASE_URL", "http://127.0.0.1:8092")
-DB_DSN = os.getenv("PROJECT2_DB_DSN", "postgresql://postgres:postgres@localhost:5432/hospital")
+DB_DSN = get_project2_db_dsn(ROOT)
 
 
 def require_ok(response: httpx.Response) -> Any:
@@ -145,7 +149,7 @@ def seed_master_data() -> dict[str, Any]:
             cur.execute(
                 """
                 INSERT INTO employee(deptment_id, regist_level_id, realname, role_type, title_level, password_hash, phone, delmark)
-                VALUES (%s, %s, 'E2E医生', 'DOCTOR', '主治医师', 'e2e', '13800000001', TRUE)
+                VALUES (%s, %s, '核心业务医生', 'DOCTOR', '主治医师', 'e2e', '13800000001', TRUE)
                 RETURNING id
                 """,
                 (dept_id, regist_level_id),
@@ -154,7 +158,7 @@ def seed_master_data() -> dict[str, Any]:
             cur.execute(
                 """
                 INSERT INTO employee(deptment_id, realname, role_type, title_level, password_hash, phone, delmark)
-                VALUES (%s, 'E2E药师', 'PHARMACIST', '药师', 'e2e', '13800000002', TRUE)
+                VALUES (%s, '核心业务药师', 'PHARMACIST', '药师', 'e2e', '13800000002', TRUE)
                 RETURNING id
                 """,
                 (dept_id,),
@@ -199,7 +203,7 @@ def seed_master_data() -> dict[str, Any]:
             cur.execute(
                 """
                 INSERT INTO drug_info(drug_code, drug_name, drug_format, drug_unit, stock_num, drug_price, manufacturer, drug_type)
-                VALUES (%s, '布洛芬缓释胶囊', '0.3g*20粒', '盒', 100, 18.50, 'E2E药厂', '西药')
+                VALUES (%s, '布洛芬缓释胶囊', '0.3g*20粒', '盒', 100, 18.50, '华北制药', '西药')
                 RETURNING id
                 """,
                 (f"DRUG-{suffix}",),
@@ -261,6 +265,16 @@ def fetch_db_summary(register_id: int, prescription_id: int, drug_id: int) -> di
     }
 
 
+def fetch_patient_id(register_id: int) -> int:
+    with psycopg.connect(DB_DSN, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT patient_id FROM register WHERE id = %s", (register_id,))
+            row = cur.fetchone()
+            if not row:
+                raise RuntimeError(f"register not found: {register_id}")
+            return int(row["patient_id"])
+
+
 def main() -> None:
     seed = seed_master_data()
     numeric_suffix = str(int(seed["suffix"], 16) % 100000).zfill(5)
@@ -286,11 +300,11 @@ def main() -> None:
             client.post(
                 f"{PROJECT2}/api/patient/register",
                 json={
-                    "realName": "Project2独立验收患者",
+                    "realName": "独立业务患者",
                     "gender": "M",
                     "cardNumber": card_number,
                     "birthdate": "1970-01-01",
-                    "homeAddress": "Project2 E2E",
+                    "homeAddress": "Project2 业务场景",
                     "phone": "13800001111",
                     "deptId": seed["dept_id"],
                     "doctorId": seed["doctor_id"],
@@ -302,6 +316,25 @@ def main() -> None:
                 },
             )
         )
+        patient_id = fetch_patient_id(register_id)
+        patient_departments = require_ok(client.get(f"{PROJECT2}/api/patient/department/list"))
+        patient_today_register = require_ok(
+            client.get(f"{PROJECT2}/api/patient/register/today", params={"patientId": patient_id})
+        )
+        patient_checkin = require_ok(
+            client.post(
+                f"{PROJECT2}/api/patient/checkin/submit",
+                params={"patientId": patient_id, "registerId": register_id},
+            )
+        )
+        patient_queue = require_ok(
+            client.get(
+                f"{PROJECT2}/api/patient/queue/status",
+                params={"patientId": patient_id, "registerId": register_id},
+            )
+        )
+        patient_check_catalog = require_ok(client.get(f"{PROJECT2}/api/patient/medical-technology/check"))
+        patient_inspection_catalog = require_ok(client.get(f"{PROJECT2}/api/patient/medical-technology/inspection"))
         waiting_patients = require_ok(
             client.get(
                 f"{PROJECT2}/api/doctor/patients",
@@ -392,7 +425,7 @@ def main() -> None:
         orders = require_ok(
             client.get(
                 f"{PROJECT2}/api/patient/orders",
-                params={"patientId": fetch_db_summary(register_id, prescription_id, seed["drug_id"])["register"]["patient_id"], "pageNum": 1, "pageSize": 20},
+                params={"patientId": patient_id, "pageNum": 1, "pageSize": 20},
             )
         )
         require_ok(
@@ -415,7 +448,7 @@ def main() -> None:
         require_ok(
             client.post(
                 f"{PROJECT2}/api/admin/drug/refund",
-                json={"prescriptionId": prescription_id, "pharmacistId": seed["pharmacist_id"], "refundReason": "验收退药"},
+                json={"prescriptionId": prescription_id, "pharmacistId": seed["pharmacist_id"], "refundReason": "业务退药"},
             )
         )
         require_ok(
@@ -440,7 +473,31 @@ def main() -> None:
         patient_dashboard = require_ok(
             client.get(
                 f"{PROJECT2}/api/patient/dashboard/summary",
-                params={"patientId": fetch_db_summary(register_id, prescription_id, seed["drug_id"])["register"]["patient_id"]},
+                params={"patientId": patient_id},
+            )
+        )
+        patient_check_requests = require_ok(
+            client.get(
+                f"{PROJECT2}/api/patient/check-requests",
+                params={"patientId": patient_id, "pageNum": 1, "pageSize": 20},
+            )
+        )
+        patient_inspection_requests = require_ok(
+            client.get(
+                f"{PROJECT2}/api/patient/inspection-requests",
+                params={"patientId": patient_id, "pageNum": 1, "pageSize": 20},
+            )
+        )
+        patient_prescriptions = require_ok(
+            client.get(
+                f"{PROJECT2}/api/patient/prescriptions",
+                params={"patientId": patient_id, "pageNum": 1, "pageSize": 20},
+            )
+        )
+        patient_reports = require_ok(
+            client.get(
+                f"{PROJECT2}/api/patient/reports",
+                params={"patientId": patient_id, "pageNum": 1, "pageSize": 20},
             )
         )
 
@@ -448,11 +505,11 @@ def main() -> None:
             client.post(
                 f"{PROJECT2}/api/patient/register",
                 json={
-                    "realName": "Project2退号验收患者",
+                    "realName": "退号业务患者",
                     "gender": "F",
                     "cardNumber": "110101198002" + numeric_suffix + "X",
                     "birthdate": "1980-02-02",
-                    "homeAddress": "Project2 E2E",
+                    "homeAddress": "Project2 业务场景",
                     "phone": "13800002222",
                     "deptId": seed["dept_id"],
                     "doctorId": seed["doctor_id"],
@@ -467,7 +524,7 @@ def main() -> None:
         require_ok(
             client.put(
                 f"{PROJECT2}/api/patient/register/cancel",
-                json={"registerId": cancel_register_id, "cancelReason": "独立业务验收退号"},
+                json={"registerId": cancel_register_id, "cancelReason": "独立业务退号"},
             )
         )
 
@@ -492,6 +549,30 @@ def main() -> None:
         raise RuntimeError(f"doctor dashboard was not scoped to seeded doctor: {doctor_dashboard}")
     if patient_dashboard.get("recordCount", 0) <= 0:
         raise RuntimeError(f"patient dashboard did not include patient records: {patient_dashboard}")
+    if not patient_departments:
+        raise RuntimeError("patient department list is empty")
+    if patient_today_register.get("registerId") != register_id:
+        raise RuntimeError(f"today register did not match current register: {patient_today_register}")
+    if patient_checkin.get("registerId") != register_id:
+        raise RuntimeError(f"patient check-in did not return current register: {patient_checkin}")
+    if patient_queue.get("registerId") != register_id:
+        raise RuntimeError(f"patient queue status did not return current register: {patient_queue}")
+    if not patient_check_catalog:
+        raise RuntimeError(f"patient check catalog is empty: {patient_check_catalog}")
+    if not any(str(row.get("techType", "")).upper() == "CHECK" for row in patient_check_catalog):
+        raise RuntimeError(f"patient check catalog has no CHECK item: {patient_check_catalog}")
+    if not patient_inspection_catalog:
+        raise RuntimeError(f"patient inspection catalog is empty: {patient_inspection_catalog}")
+    if not any(str(row.get("techType", "")).upper() == "INSPECTION" for row in patient_inspection_catalog):
+        raise RuntimeError(f"patient inspection catalog has no INSPECTION item: {patient_inspection_catalog}")
+    if not patient_check_requests.get("records"):
+        raise RuntimeError(f"patient check requests were empty: {patient_check_requests}")
+    if not patient_inspection_requests.get("records"):
+        raise RuntimeError(f"patient inspection requests were empty: {patient_inspection_requests}")
+    if not any(row.get("prescriptionId") == prescription_id for row in patient_prescriptions.get("records", [])):
+        raise RuntimeError(f"patient prescriptions missing seeded prescription: {patient_prescriptions}")
+    if len(patient_reports.get("records") or []) < 2:
+        raise RuntimeError(f"patient reports did not include check and inspection reports: {patient_reports}")
 
     summary = {
         "status": "success",
@@ -512,6 +593,18 @@ def main() -> None:
             "admin": admin_dashboard,
             "doctor": doctor_dashboard,
             "patient": patient_dashboard,
+        },
+        "patient_dedicated_endpoints": {
+            "departments": len(patient_departments),
+            "today_register": patient_today_register,
+            "checkin": patient_checkin,
+            "queue": patient_queue,
+            "check_catalog": len(patient_check_catalog),
+            "inspection_catalog": len(patient_inspection_catalog),
+            "check_requests": len(patient_check_requests.get("records") or []),
+            "inspection_requests": len(patient_inspection_requests.get("records") or []),
+            "prescriptions": len(patient_prescriptions.get("records") or []),
+            "reports": len(patient_reports.get("records") or []),
         },
         "db_summary": db_summary,
     }

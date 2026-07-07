@@ -6,6 +6,7 @@ import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 
 export default defineConfig({
+    cacheDir: path.resolve(__dirname, '../.tmp/vite-cache/frontend'),
     plugins: [
         vue(),
         Components({

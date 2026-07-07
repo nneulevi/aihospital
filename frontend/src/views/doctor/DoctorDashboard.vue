@@ -20,6 +20,25 @@
       </div>
     </div>
 
+    <div class="quick-grid">
+      <div class="quick-card" @click="$router.push('/doctor/ai-diagnosis')">
+        <van-icon name="records-o" />
+        <span>AI 辅助诊断</span>
+      </div>
+      <div class="quick-card" @click="$router.push('/doctor/ai-triage')">
+        <van-icon name="guide-o" />
+        <span>AI 分诊</span>
+      </div>
+      <div class="quick-card" @click="$router.push('/doctor/schedule')">
+        <van-icon name="calendar-o" />
+        <span>我的排班</span>
+      </div>
+      <div class="quick-card" @click="$router.push('/doctor/headct-reports')">
+        <van-icon name="description-o" />
+        <span>CT 报告工作台</span>
+      </div>
+    </div>
+
     <van-tabs v-model:active="listTab" class="patient-tabs">
       <van-tab title="待诊队列" name="pending">
         <div class="patient-list">
@@ -34,7 +53,7 @@
               <span>病历号: {{ p.caseNumber }}</span>
             </div>
             <div class="patient-time">
-              <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }} {{ p.noon === 'MORNING' ? '上午' : '下午' }}
+              <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }} {{ formatNoon(p.noon) }}
             </div>
           </div>
           <div v-if="pendingList.length === 0" class="empty-state">
@@ -57,7 +76,7 @@
               <span>病历号: {{ p.caseNumber }}</span>
             </div>
             <div class="patient-time">
-              <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }}
+              <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }} {{ formatNoon(p.noon) }}
             </div>
           </div>
           <div v-if="consultingList.length === 0" class="empty-state">
@@ -79,7 +98,7 @@
               <span>{{ p.age }}岁</span>
             </div>
             <div class="patient-time">
-              <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }}
+              <van-icon name="clock-o" /> {{ formatTime(p.registrationTime) }} {{ formatNoon(p.noon) }}
             </div>
           </div>
           <div v-if="finishedList.length === 0" class="empty-state">
@@ -168,6 +187,11 @@ const goToVisit = async (patient: DoctorPatientListVO) => {
 }
 
 const formatTime = (time?: string) => time ? dayjs(time).format('HH:mm') : ''
+const formatNoon = (noon?: string) => {
+  if (noon === 'AM' || noon === 'MORNING') return '上午'
+  if (noon === 'PM' || noon === 'AFTERNOON') return '下午'
+  return ''
+}
 
 onMounted(() => {
   loadPatients()
@@ -185,6 +209,27 @@ onMounted(() => {
   gap: 12px;
   margin-bottom: 16px;
 }
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.quick-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 8px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+  color: #1677ff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
 .stat-item {
   flex: 1;
   background: white;
@@ -195,16 +240,16 @@ onMounted(() => {
   .stat-num {
     font-size: 24px;
     font-weight: 700;
-    color: #5E60CE;
+    color: #1677ff;
   }
   .stat-label {
     font-size: 12px;
-    color: #8B7A6B;
+    color: #64748b;
     margin-top: 4px;
   }
 }
 .patient-tabs :deep(.van-tabs__line) {
-  background-color: #5E60CE;
+  background-color: #1677ff;
 }
 .patient-list {
   padding: 8px 0;
@@ -217,10 +262,10 @@ onMounted(() => {
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   cursor: pointer;
   &.active {
-    border-left: 4px solid #F4A261;
+    border-left: 4px solid #1677ff;
   }
   &.done {
-    border-left: 4px solid #8CB369;
+    border-left: 4px solid #10b981;
     opacity: 0.8;
   }
 }
@@ -232,19 +277,19 @@ onMounted(() => {
   .patient-name {
     font-size: 16px;
     font-weight: 600;
-    color: #5C4B3A;
+    color: #1f2937;
   }
 }
 .patient-info {
   display: flex;
   gap: 12px;
   font-size: 13px;
-  color: #8B7A6B;
+  color: #64748b;
   margin-bottom: 8px;
 }
 .patient-time {
   font-size: 12px;
-  color: #C4B8A8;
+  color: #94a3b8;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -252,6 +297,12 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 40px 0;
-  color: #C4B8A8;
+  color: #94a3b8;
+}
+
+@media (max-width: 680px) {
+  .quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

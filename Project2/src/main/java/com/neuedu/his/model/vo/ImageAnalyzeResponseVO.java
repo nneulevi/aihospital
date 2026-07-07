@@ -11,8 +11,13 @@ public class ImageAnalyzeResponseVO {
     private String findings;
     private String conclusion;
     private Double confidence;
+    private Double positiveProbability;
+    private Map<String, Double> subtypeProbabilities;
+    private String analysisReliability;
+    private List<String> modelLimitations;
     private List<Annotation> annotations;
     private Map<String, Object> aiImagingStatus;
+    private Map<String, String> previewUrls;
 
     @Data
     public static class Annotation {

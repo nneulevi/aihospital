@@ -32,17 +32,19 @@ public class ConsultationServiceMockImpl implements ConsultationService {
             recommendations.add(createRec(6, "全科", 0.60));
         }
 
-        AiConsultation consultation = new AiConsultation();
-        consultation.setPatientId(request.getPatientId());
-        consultation.setSymptomsDesc(symptoms);
-        consultation.setAiRecommendDept(JsonUtil.toJson(recommendations));
-        consultation.setAiDiagnosisHint("建议进一步检查: " + symptoms.substring(0, Math.min(20, symptoms.length())));
-        consultation.setAiModelVersion("Mock-v1.0");
-        aiConsultationMapper.insert(consultation);
-
         ConsultationResponseVO response = new ConsultationResponseVO();
-        response.setConsultationId(consultation.getId());
+        response.setDiagnosisHint("请结合症状持续时间、伴随体征、既往病史和必要检查综合判断；AI 分诊仅用于就诊科室建议。");
         response.setRecommendations(recommendations);
+        if (request.getPatientId() != null) {
+            AiConsultation consultation = new AiConsultation();
+            consultation.setPatientId(request.getPatientId());
+            consultation.setSymptomsDesc(symptoms);
+            consultation.setAiRecommendDept(JsonUtil.toJson(recommendations));
+            consultation.setAiDiagnosisHint("建议进一步检查: " + symptoms.substring(0, Math.min(20, symptoms.length())));
+            consultation.setAiModelVersion("Mock-v1.0");
+            aiConsultationMapper.insert(consultation);
+            response.setConsultationId(consultation.getId());
+        }
         return response;
     }
 

@@ -19,6 +19,35 @@
                  LEFT JOIN drug_info d ON dsr.drug_id = d.id
                  LEFT JOIN employee e ON dsr.operator_id = e.id
         WHERE 1=1
+          AND COALESCE(d.drug_name, '') NOT LIKE 'Extended%'
+          AND COALESCE(d.drug_name, '') NOT LIKE 'User Logic%'
+          AND COALESCE(d.drug_name, '') NOT LIKE '%E2E%'
+          AND COALESCE(d.drug_name, '') NOT LIKE '%项目验收%'
+          AND COALESCE(d.drug_name, '') NOT LIKE '%验收%'
+          AND COALESCE(d.drug_name, '') NOT LIKE '%测试%'
+          AND COALESCE(d.drug_code, '') NOT LIKE 'EXT-%'
+          AND COALESCE(d.drug_code, '') NOT LIKE 'ULA-%'
+          AND COALESCE(d.manufacturer, '') NOT LIKE '%E2E%'
+          AND COALESCE(d.manufacturer, '') NOT LIKE '%User Logic%'
+          AND COALESCE(d.manufacturer, '') NOT LIKE '%Extended%'
+          AND COALESCE(d.manufacturer, '') NOT LIKE '%项目验收%'
+          AND COALESCE(d.manufacturer, '') NOT LIKE '%验收%'
+          AND COALESCE(d.manufacturer, '') NOT LIKE '%测试%'
+          AND COALESCE(e.realname, '') NOT LIKE '%E2E%'
+          AND COALESCE(e.realname, '') NOT LIKE '%User Logic%'
+          AND COALESCE(e.realname, '') NOT LIKE '%Extended%'
+          AND COALESCE(e.realname, '') NOT LIKE '%项目验收%'
+          AND COALESCE(e.realname, '') NOT LIKE '%验收%'
+          AND COALESCE(e.realname, '') NOT LIKE '%测试%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%E2E%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%User Logic%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%Extended%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%项目验收%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%验收%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%测试%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%acceptance%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%purchase%'
+          AND COALESCE(dsr.reason, '') NOT LIKE '%monthly check%'
         <if test="drugId != null">AND dsr.drug_id = #{drugId}</if>
         <if test="recordType != null and recordType != ''">AND dsr.record_type = #{recordType}</if>
         ORDER BY dsr.create_time DESC, dsr.id DESC

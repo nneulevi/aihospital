@@ -288,7 +288,7 @@ const onCodeLogin = async () => {
 <style lang="scss" scoped>
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #F4A261 0%, #E76F51 100%);
+  background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -313,21 +313,21 @@ const onCodeLogin = async () => {
 }
 .submit-btn { margin-top: 24px; padding: 0 12px; }
 .submit-btn :deep(.van-button) {
-  background-color: #F4A261;
-  border-color: #F4A261;
+  background-color: #4CAF50;
+  border-color: #4CAF50;
   height: 44px;
 }
 .test-accounts {
   margin-top: 24px;
   padding-top: 16px;
-  border-top: 1px solid #E8DCC8;
-  .test-title { font-size: 12px; color: #8B7A6B; margin-bottom: 8px; }
+  border-top: 1px solid #E6EBF2;
+  .test-title { font-size: 12px; color: #687789; margin-bottom: 8px; }
   .test-item {
     font-size: 12px;
-    color: #8B7A6B;
+    color: #687789;
     padding: 4px 0;
     cursor: pointer;
-    &:hover { color: #F4A261; }
+    &:hover { color: #4CAF50; }
   }
 }
 </style>

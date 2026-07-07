@@ -23,6 +23,8 @@ import httpx
 import psycopg
 from psycopg.rows import dict_row
 
+from project2_db_env import get_project2_db_dsn
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_CT = Path(os.getenv("HEADCT_E2E_SAMPLE_CT", ROOT / "testdata" / "headct" / "head_ct_positive_case.nii.gz"))
@@ -30,7 +32,7 @@ PROJECT2 = os.getenv("PROJECT2_BASE_URL", "http://127.0.0.1:8092")
 ORCHESTRATOR = os.getenv("ORCHESTRATOR_BASE_URL", "http://127.0.0.1:8010")
 REPORT = os.getenv("REPORT_BASE_URL", "http://127.0.0.1:8030")
 EMR = os.getenv("EMR_BASE_URL", "http://127.0.0.1:8040")
-DB_DSN = os.getenv("PROJECT2_DB_DSN", "postgresql://postgres:postgres@localhost:5432/hospital")
+DB_DSN = get_project2_db_dsn(ROOT)
 EMR_TOKEN = os.getenv("HEADCT_LOCAL_EMR_TOKEN", "headct-local-emr-change-before-production")
 
 
@@ -127,12 +129,12 @@ def seed_business_case() -> dict[str, int | str]:
                 """,
                 (
                     register_id,
-                    "急诊头痛、头晕、恶心，外伤后需完善头颅 CT。",
-                    "头部外伤后头痛头晕伴恶心，需评估颅内出血风险。",
-                    "既往无明确颅脑手术史。",
-                    "神志清楚，诉头痛，未见明显肢体偏瘫。",
-                    "申请头颅 CT 平扫并进行 AI 辅助分析。",
-                    "待影像检查后综合判断。",
+                    "\u6025\u8bca\u5934\u75db\u3001\u5934\u6655\u3001\u6076\u5fc3\uff0c\u5916\u4f24\u540e\u9700\u5b8c\u5584\u5934\u9885 CT\u3002",
+                    "\u5934\u90e8\u5916\u4f24\u540e\u5934\u75db\u5934\u6655\u4f34\u6076\u5fc3\uff0c\u9700\u8bc4\u4f30\u9885\u5185\u51fa\u8840\u98ce\u9669\u3002",
+                    "\u65e2\u5f80\u65e0\u660e\u786e\u9885\u8111\u624b\u672f\u53f2\u3002",
+                    "\u795e\u5fd7\u6e05\u695a\uff0c\u8bc9\u5934\u75db\uff0c\u672a\u89c1\u660e\u663e\u80a2\u4f53\u504f\u762b\u3002",
+                    "\u7533\u8bf7\u5934\u9885 CT \u5e73\u626b\u5e76\u8fdb\u884c AI \u8f85\u52a9\u5206\u6790\u3002",
+                    "\u5f85\u5f71\u50cf\u68c0\u67e5\u540e\u7efc\u5408\u5224\u65ad\u3002",
                 ),
             )
             medical_record_id = int(cur.fetchone()["id"])
@@ -145,7 +147,7 @@ def seed_business_case() -> dict[str, int | str]:
                 VALUES (%s, 1, %s, %s, NOW(), 'CREATED', %s)
                 RETURNING id
                 """,
-                (register_id, "头颅 CT 平扫", "head", "E2E real business CT order"),
+                (register_id, "\u5934\u9885 CT \u5e73\u626b", "head", "E2E real business CT order"),
             )
             check_request_id = int(cur.fetchone()["id"])
         conn.commit()
@@ -255,8 +257,16 @@ def main() -> None:
         )
         ai_status = analysis.get("aiImagingStatus") or {}
         project_use_status = ai_status.get("projectUseStatus") or ai_status.get("project_use_status")
-        if project_use_status not in {"ready_for_project_demo", "degraded_for_project_demo", "mock_demo_only"}:
+        if project_use_status != "ready_for_project_demo":
             raise RuntimeError(f"Project2 AI imaging status missing or invalid: {ai_status}")
+        if not (ai_status.get("workflowReady") or ai_status.get("workflow_ready")):
+            raise RuntimeError(f"Project2 AI imaging workflow is not fully ready: {ai_status}")
+        limitations = ai_status.get("limitations") or []
+        if limitations:
+            raise RuntimeError(f"Project2 AI imaging still reports limitations and cannot be marked deliverable: {limitations}; status={ai_status}")
+        lesion_model = ai_status.get("lesionModel") or ai_status.get("lesion_model") or {}
+        if lesion_model.get("checkpointFallbackUsed") or lesion_model.get("checkpoint_fallback_used"):
+            raise RuntimeError(f"Project2 AI lesion model used checkpoint fallback: {lesion_model}")
         if not (ai_status.get("qualityControlModel") or ai_status.get("quality_control_model")):
             raise RuntimeError(f"Project2 AI quality-control model status is missing: {ai_status}")
         if not (ai_status.get("lesionModel") or ai_status.get("lesion_model")):
@@ -274,11 +284,11 @@ def main() -> None:
                 f"{REPORT}/api/v1/reports/{report_service_id}/draft",
                 headers=actor("doctor-reporting-001", "reporting_doctor"),
                 json={
-                    "findings": str(report_snapshot.get("findings") or "") + "\n医生已结合原始影像完成复核。",
-                    "impression": report_snapshot.get("impression") or "AI 辅助报告已生成，最终结论需医生审核。",
-                    "recommendations": report_snapshot.get("recommendations") or "请结合临床症状复查。",
+                    "findings": str(report_snapshot.get("findings") or "") + "\n\u533b\u751f\u5df2\u7ed3\u5408\u539f\u59cb\u5f71\u50cf\u5b8c\u6210\u590d\u6838\u3002",
+                    "impression": report_snapshot.get("impression") or "AI \u8f85\u52a9\u62a5\u544a\u5df2\u751f\u6210\uff0c\u6700\u7ec8\u7ed3\u8bba\u9700\u533b\u751f\u5ba1\u6838\u3002",
+                    "recommendations": report_snapshot.get("recommendations") or "\u8bf7\u7ed3\u5408\u4e34\u5e8a\u75c7\u72b6\u590d\u67e5\u3002",
                     "expected_version": report_snapshot["version_lock"],
-                    "change_reason": "Project2 主平台端到端业务验收：报告医生复核。",
+                    "change_reason": "Project2 \u4e3b\u5e73\u53f0\u7aef\u5230\u7aef\u4e1a\u52a1\u9a8c\u6536\uff1a\u62a5\u544a\u533b\u751f\u590d\u6838\u3002",
                 },
             )
         )["report"]
@@ -292,7 +302,7 @@ def main() -> None:
             client.post(
                 f"{REPORT}/api/v1/reports/{report_service_id}/approve",
                 headers=actor("doctor-reviewing-001", "reviewing_doctor"),
-                json={"comment": "Project2 主平台端到端业务验收通过。"},
+                json={"comment": "Project2 \u4e3b\u5e73\u53f0\u7aef\u5230\u7aef\u4e1a\u52a1\u9a8c\u6536\u901a\u8fc7\u3002"},
             )
         )
         require_ok(

@@ -10,6 +10,28 @@
           <van-field v-model="chargeForm.chargeMethod" label="收费方式" placeholder="CASH / WECHAT / ALIPAY" />
           <van-button type="primary" block round :loading="charging" @click="confirmCharge">确认收费</van-button>
         </section>
+
+        <section class="query-panel">
+          <van-field v-model="chargeQueryRegisterId" label="挂号ID" type="digit" placeholder="输入挂号ID查询待收费项目" />
+          <van-button size="small" type="primary" :loading="chargeItemsLoading" @click="loadPendingItems">查询待收费</van-button>
+        </section>
+        <div class="record-list">
+          <article v-for="item in pendingItems" :key="`${item.itemType}-${item.itemId}`" class="record-card selectable" @click="fillChargeItem(item)">
+            <header>
+              <span>{{ item.itemName }}</span>
+              <van-tag type="warning">{{ item.stateName }}</van-tag>
+            </header>
+            <div class="record-main">
+              <strong>{{ item.patientName || '未知患者' }}</strong>
+              <span>{{ itemTypeLabel(item.itemType) }} #{{ item.itemId }}</span>
+            </div>
+            <footer>
+              <span>挂号ID {{ item.registerId || '--' }}</span>
+              <span>¥{{ formatMoney(item.amount) }}</span>
+            </footer>
+          </article>
+          <van-empty v-if="!chargeItemsLoading && chargeQueryRegisterId && pendingItems.length === 0" description="暂无待收费项目" />
+        </div>
       </van-tab>
 
       <van-tab title="门诊退费" name="refund">
@@ -21,6 +43,28 @@
           <van-field v-model="refundForm.reason" label="退费原因" type="textarea" rows="2" autosize placeholder="输入退费原因" />
           <van-button type="danger" block round :loading="refunding" @click="handleRefund">确认退费</van-button>
         </section>
+
+        <section class="query-panel">
+          <van-field v-model="refundQueryRegisterId" label="挂号ID" type="digit" placeholder="输入挂号ID查询可退项目" />
+          <van-button size="small" type="primary" :loading="paidItemsLoading" @click="loadPaidItems">查询可退项目</van-button>
+        </section>
+        <div class="record-list">
+          <article v-for="item in paidItems" :key="`${item.itemType}-${item.itemId}`" class="record-card selectable" @click="fillRefundItem(item)">
+            <header>
+              <span>{{ item.itemName }}</span>
+              <van-tag type="success">{{ item.stateName }}</van-tag>
+            </header>
+            <div class="record-main">
+              <strong>{{ item.patientName || '未知患者' }}</strong>
+              <span>{{ itemTypeLabel(item.itemType) }} #{{ item.itemId }}</span>
+            </div>
+            <footer>
+              <span>挂号ID {{ item.registerId || '--' }}</span>
+              <span>¥{{ formatMoney(item.amount) }}</span>
+            </footer>
+          </article>
+          <van-empty v-if="!paidItemsLoading && refundQueryRegisterId && paidItems.length === 0" description="暂无可退项目" />
+        </div>
       </van-tab>
 
       <van-tab title="收费记录" name="records">
@@ -87,7 +131,7 @@
 import { ref } from 'vue'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
-import { charge, refund, getFinanceRecords, getDailySummary } from '@/api'
+import { charge, refund, getFinanceRecords, getDailySummary, getAdminPendingItems, getAdminPaidItems, type ChargeItemVO } from '@/api'
 import type { ChargeRequestDTO, DailySummaryVO, FinanceRecordVO, RefundRequestDTO } from '@/api/model'
 
 const activeTab = ref('charge')
@@ -98,6 +142,12 @@ const summaryLoading = ref(false)
 
 const chargeForm = ref({ registerId: '', itemIds: '', itemTypes: '', amount: '', chargeMethod: 'CASH' })
 const refundForm = ref({ registerId: '', itemIds: '', itemTypes: '', amount: '', reason: '' })
+const chargeQueryRegisterId = ref('')
+const refundQueryRegisterId = ref('')
+const chargeItemsLoading = ref(false)
+const paidItemsLoading = ref(false)
+const pendingItems = ref<ChargeItemVO[]>([])
+const paidItems = ref<ChargeItemVO[]>([])
 
 const recordStartDate = ref(dayjs().subtract(7, 'day').format('YYYY-MM-DD'))
 const recordEndDate = ref(dayjs().format('YYYY-MM-DD'))
@@ -111,6 +161,15 @@ const summaryDate = ref(dayjs().format('YYYY-MM-DD'))
 const summaryDateValue = ref(summaryDate.value.split('-'))
 const summaryData = ref<DailySummaryVO | null>(null)
 const showSummaryDatePicker = ref(false)
+
+const showReadableToast = (message: string) => {
+  showToast({
+    message,
+    position: 'top',
+    className: 'app-readable-toast',
+    duration: 1800
+  })
+}
 
 const parseItemIds = (value: string) => value
   .split(',')
@@ -127,12 +186,12 @@ const confirmCharge = async () => {
   const itemTypes = parseItemTypes(chargeForm.value.itemTypes)
   const registerId = Number(chargeForm.value.registerId)
   const amount = Number(chargeForm.value.amount)
-  if (!registerId || itemIds.length === 0 || !amount) {
-    showToast('请填写挂号ID、项目ID和金额')
+  if (!registerId || itemIds.length === 0 || amount <= 0) {
+    showReadableToast('请填写挂号ID、项目ID和金额')
     return
   }
   if (itemTypes.length > 0 && itemTypes.length !== itemIds.length) {
-    showToast('项目类型数量需与项目ID一致')
+    showReadableToast('项目类型数量需与项目ID一致')
     return
   }
 
@@ -146,14 +205,40 @@ const confirmCharge = async () => {
       chargeMethod: chargeForm.value.chargeMethod || 'CASH'
     }
     await charge(dto)
-    showToast('收费成功')
+    showReadableToast('收费成功')
     chargeForm.value = { registerId: '', itemIds: '', itemTypes: '', amount: '', chargeMethod: 'CASH' }
+    if (chargeQueryRegisterId.value) await loadPendingItems()
+    if (refundQueryRegisterId.value) await loadPaidItems()
     await loadRecords()
-  } catch {
-    showToast('收费失败')
+  } catch (error: any) {
+    showReadableToast(error?.message || '收费失败')
   } finally {
     charging.value = false
   }
+}
+
+const loadPendingItems = async () => {
+  const registerId = Number(chargeQueryRegisterId.value)
+  if (!registerId) {
+    showReadableToast('请填写挂号ID')
+    return
+  }
+  chargeItemsLoading.value = true
+  try {
+    const res = await getAdminPendingItems(registerId)
+    pendingItems.value = (res.data || res || []) as ChargeItemVO[]
+  } catch {
+    showReadableToast('待收费项目加载失败')
+  } finally {
+    chargeItemsLoading.value = false
+  }
+}
+
+const fillChargeItem = (item: ChargeItemVO) => {
+  chargeForm.value.registerId = String(item.registerId || '')
+  chargeForm.value.itemIds = String(item.itemId || '')
+  chargeForm.value.itemTypes = item.itemType || ''
+  chargeForm.value.amount = String(item.amount || 0)
 }
 
 const handleRefund = async () => {
@@ -161,12 +246,12 @@ const handleRefund = async () => {
   const itemTypes = parseItemTypes(refundForm.value.itemTypes)
   const registerId = Number(refundForm.value.registerId)
   const refundAmount = Number(refundForm.value.amount)
-  if (!registerId || itemIds.length === 0 || !refundAmount || !refundForm.value.reason) {
-    showToast('请填写完整退费信息')
+  if (!registerId || itemIds.length === 0 || refundAmount <= 0 || !refundForm.value.reason) {
+    showReadableToast('请填写完整退费信息')
     return
   }
   if (itemTypes.length > 0 && itemTypes.length !== itemIds.length) {
-    showToast('项目类型数量需与项目ID一致')
+    showReadableToast('项目类型数量需与项目ID一致')
     return
   }
 
@@ -180,14 +265,40 @@ const handleRefund = async () => {
       refundReason: refundForm.value.reason
     }
     await refund(dto)
-    showToast('退费成功')
+    showReadableToast('退费成功')
     refundForm.value = { registerId: '', itemIds: '', itemTypes: '', amount: '', reason: '' }
+    if (refundQueryRegisterId.value) await loadPaidItems()
+    if (chargeQueryRegisterId.value) await loadPendingItems()
     await loadRecords()
-  } catch {
-    showToast('退费失败')
+  } catch (error: any) {
+    showReadableToast(error?.message || '退费失败')
   } finally {
     refunding.value = false
   }
+}
+
+const loadPaidItems = async () => {
+  const registerId = Number(refundQueryRegisterId.value)
+  if (!registerId) {
+    showReadableToast('请填写挂号ID')
+    return
+  }
+  paidItemsLoading.value = true
+  try {
+    const res = await getAdminPaidItems(registerId)
+    paidItems.value = (res.data || res || []) as ChargeItemVO[]
+  } catch {
+    showReadableToast('可退项目加载失败')
+  } finally {
+    paidItemsLoading.value = false
+  }
+}
+
+const fillRefundItem = (item: ChargeItemVO) => {
+  refundForm.value.registerId = String(item.registerId || '')
+  refundForm.value.itemIds = String(item.itemId || '')
+  refundForm.value.itemTypes = item.itemType || ''
+  refundForm.value.amount = String(item.amount || 0)
 }
 
 const onRecordStartConfirm = ({ selectedValues }: any) => {
@@ -216,7 +327,7 @@ const loadRecords = async () => {
     const data = res.data || res
     financeRecords.value = data.records || []
   } catch {
-    showToast('收费记录加载失败')
+    showReadableToast('收费记录加载失败')
   } finally {
     recordsLoading.value = false
   }
@@ -234,7 +345,7 @@ const loadSummary = async () => {
     const res = await getDailySummary({ query: { summaryDate: summaryDate.value } })
     summaryData.value = (res.data || res) as DailySummaryVO
   } catch {
-    showToast('日结统计加载失败')
+    showReadableToast('日结统计加载失败')
   } finally {
     summaryLoading.value = false
   }
@@ -242,6 +353,14 @@ const loadSummary = async () => {
 
 const formatDateTime = (date?: string) => date ? dayjs(date).format('MM-DD HH:mm') : '--'
 const formatMoney = (value?: number) => Number(value || 0).toFixed(2)
+const itemTypeLabel = (type?: string) => {
+  if (type === 'PRESCRIPTION') return '处方'
+  if (type === 'CHECK') return '检查'
+  if (type === 'INSPECTION') return '检验'
+  if (type === 'DISPOSAL') return '处置'
+  if (type === 'REGISTER') return '挂号'
+  return type || '项目'
+}
 </script>
 
 <style lang="scss" scoped>
@@ -269,6 +388,14 @@ const formatMoney = (value?: number) => Number(value || 0).toFixed(2)
   background: #fff;
   border: 1px solid #eef0f3;
   border-radius: 8px;
+}
+.record-card.selectable {
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.record-card.selectable:hover {
+  border-color: #1677ff;
+  background: #f8fbff;
 }
 .record-card header,
 .record-card footer,

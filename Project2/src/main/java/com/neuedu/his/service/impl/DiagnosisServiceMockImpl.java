@@ -35,15 +35,17 @@ public class DiagnosisServiceMockImpl implements DiagnosisService {
             suggestions.add(createSuggestion(disease2, 0.72, "需结合检查结果排除"));
         }
 
-        for (DiagnosisSuggestResponseVO.Suggestion item : suggestions) {
-            AiDiagnosisSuggestion suggestion = new AiDiagnosisSuggestion();
-            suggestion.setMedicalRecordId(request.getMedicalRecordId());
-            suggestion.setAiDiagnosis(item.getDiseaseName());
-            suggestion.setDiseaseId(Integer.parseInt(item.getDiseaseCode()));
-            suggestion.setConfidence(BigDecimal.valueOf(item.getConfidence()));
-            suggestion.setEvidenceBasis(item.getEvidence());
-            suggestion.setAiModelVersion("Mock-v1.0");
-            aiDiagnosisSuggestionMapper.insert(suggestion);
+        if (request.getMedicalRecordId() != null) {
+            for (DiagnosisSuggestResponseVO.Suggestion item : suggestions) {
+                AiDiagnosisSuggestion suggestion = new AiDiagnosisSuggestion();
+                suggestion.setMedicalRecordId(request.getMedicalRecordId());
+                suggestion.setAiDiagnosis(item.getDiseaseName());
+                suggestion.setDiseaseId(Integer.parseInt(item.getDiseaseCode()));
+                suggestion.setConfidence(BigDecimal.valueOf(item.getConfidence()));
+                suggestion.setEvidenceBasis(item.getEvidence());
+                suggestion.setAiModelVersion("Mock-v1.0");
+                aiDiagnosisSuggestionMapper.insert(suggestion);
+            }
         }
 
         DiagnosisSuggestResponseVO response = new DiagnosisSuggestResponseVO();

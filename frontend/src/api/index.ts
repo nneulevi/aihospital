@@ -1,5 +1,6 @@
 // src/api/index.ts
 import { request } from '@/utils/request'
+import { postJsonSse, type SseJsonHandlers } from '@/utils/sseJson'
 import { getOpenAPIDefinition } from './client'
 
 const api = getOpenAPIDefinition()
@@ -44,6 +45,56 @@ export const getRecordDetail = wrap(api.getRecordDetail)     // GET /api/patient
 export const getOrders = wrap((params: any) => request.get('/patient/orders', params?.query || params))                 // GET /api/patient/orders
 export const list = wrap(api.list)                           // GET /api/patient/list
 export const getDoctors = wrap((params: any) => request.get('/patient/doctors', params?.query || params))             // GET /api/patient/doctors
+export const getPatientDepartments = wrap(() => request.get<PatientDepartmentVO[]>('/patient/department/list'))
+export const getTodayRegister = wrap((patientId: number) => request.get<PatientTodayRegisterVO>('/patient/register/today', { patientId }))
+export const submitPatientCheckin = wrap((patientId: number, registerId?: number) =>
+    request.post<PatientCheckinResultVO>('/patient/checkin/submit', undefined, { params: { patientId, registerId } })
+)
+export const getPatientQueueStatus = wrap((patientId: number, registerId?: number) =>
+    request.get<PatientQueueStatusVO>('/patient/queue/status', { patientId, registerId })
+)
+export const getPatientInspectionCatalog = wrap((params?: any) =>
+    request.get<PatientMedicalTechnologyVO[]>('/patient/medical-technology/inspection', params?.query || params)
+)
+export const getPatientCheckCatalog = wrap((params?: any) =>
+    request.get<PatientMedicalTechnologyVO[]>('/patient/medical-technology/check', params?.query || params)
+)
+export const getPatientInspectionRequests = wrap((params: any) =>
+    request.get('/patient/inspection-requests', params?.query || params)
+)
+export const getPatientCheckRequests = wrap((params: any) =>
+    request.get('/patient/check-requests', params?.query || params)
+)
+export const getPatientPrescriptions = wrap((params: any) =>
+    request.get('/patient/prescriptions', params?.query || params)
+)
+export const getPatientReports = wrap((params: any) =>
+    request.get('/patient/reports', params?.query || params)
+)
+export const getPatientQueueDepts = wrap((patientId: number) =>
+    request.get('/patient/queue/depts', { patientId })
+)
+export const getPatientQueueCount = wrap((patientId: number) =>
+    request.get('/patient/queue/count', { patientId })
+)
+export const createPatientCheckRequest = wrap((data: any) =>
+    request.post('/patient/check-request', data)
+)
+export const createPatientInspectionRequest = wrap((data: any) =>
+    request.post('/patient/inspection-request', data)
+)
+export const getPatientPrescriptionDetail = wrap((prescriptionId: number) =>
+    request.get(`/patient/prescriptions/${prescriptionId}`)
+)
+export const getPatientReportDetail = wrap((reportId: string) =>
+    request.get(`/patient/reports/${reportId}`)
+)
+export const markPatientReportRead = wrap((reportId: string) =>
+    request.put(`/patient/reports/${reportId}/read`)
+)
+export const getCurrentPatient = wrap((patientId: number) =>
+    request.get('/patient/current', { patientId })
+)
 
 // ========== 医生/管理员认证（新增） ==========
 export const authSendCode = wrap((data: any) => request.post('/auth/send-code', data))            // POST /api/auth/send-code
@@ -64,6 +115,28 @@ export const getPatients = wrap((params: any) => request.get('/doctor/patients',
 export const getPatientDetail = wrap(api.getPatientDetail)
 export const getCheckResults = wrap(api.getCheckResults)
 export const receivePatient = wrap((registerId: number) => request.put(`/doctor/patients/${registerId}/receive`))
+export const returnPatientToWaiting = wrap((registerId: number) => request.put(`/doctor/patients/${registerId}/return-waiting`))
+export const getMedicalRecord = wrap((registerId: number) =>
+    request.get(`/doctor/medical-record/${registerId}`)
+)
+export const getOrdersByRegisterId = wrap((registerId: number) =>
+    request.get(`/doctor/orders/${registerId}`)
+)
+export const getPrescriptionsByRegisterId = wrap((registerId: number) =>
+    request.get(`/doctor/prescriptions/${registerId}`)
+)
+export const getDiagnosis = wrap((registerId: number) =>
+    request.get(`/doctor/diagnosis/${registerId}`)
+)
+export const getDoctorProfile = wrap((doctorId: number) =>
+    request.get<DoctorProfileVO>('/doctor/profile', { doctorId })
+)
+export const getDoctorStatistics = wrap((doctorId: number) =>
+    request.get<DoctorStatisticsVO>('/doctor/statistics', { doctorId })
+)
+export const getCheckResultDetail = wrap((itemId: number) =>
+    request.get(`/doctor/check-result/${itemId}`)
+)
 
 // ========== AI 模块 ==========
 export const scheduleGenerate = wrap(api.generate)
@@ -72,6 +145,10 @@ export const upload = wrap(api.upload)
 export const analyze = wrap(api.analyze)
 export const suggest = wrap(api.suggest)
 export const triage = wrap(api.triage)
+export const triageStream = (data: any, handlers: SseJsonHandlers = {}) =>
+    postJsonSse('/ai/consultation/triage/stream', data, handlers)
+export const diagnosisSuggestStream = (data: any, handlers: SseJsonHandlers = {}) =>
+    postJsonSse('/ai/diagnosis/suggest/stream', data, handlers)
 export const getResults = wrap((params: any) => request.get('/ai/schedule/result', params?.query || params))
 
 // ========== 管理员 ==========
@@ -83,8 +160,80 @@ export const getInventory = wrap(api.getInventory)
 export const getFinanceRecords = wrap((params: any) => request.get('/admin/finance/records', params?.query || params))
 export const getDailySummary = wrap((params: any) => request.get('/admin/finance/daily-summary', params?.query || params))
 export const getDrugInventory = wrap((params: any) => request.get('/admin/drug/inventory', params?.query || params))
+export const getAdminPendingItems = wrap((registerId: number) =>
+    request.get<ChargeItemVO[]>('/admin/finance/pending-items', { registerId })
+)
+export const getAdminPaidItems = wrap((registerId: number) =>
+    request.get<ChargeItemVO[]>('/admin/finance/paid-items', { registerId })
+)
+export const getAdminPendingDispense = wrap(() =>
+    request.get<PrescriptionWorkItemVO[]>('/admin/drug/pending-dispense')
+)
+export const getAdminPendingRefund = wrap(() =>
+    request.get<PrescriptionWorkItemVO[]>('/admin/drug/pending-refund')
+)
+export const getAdminEmployees = wrap(() =>
+    request.get<EmployeeListItemVO[]>('/admin/employee/list')
+)
+export const getAdminDoctors = wrap(() =>
+    request.get<EmployeeListItemVO[]>('/admin/employee/doctors')
+)
+export const getAdminDepartments = wrap(() =>
+    request.get<PatientDepartmentVO[]>('/admin/department/list')
+)
 
-// ========== 涓夌棣栭〉缁熻 ==========
+export interface StaffCreateRequest {
+    deptId?: number
+    registLevelId?: number
+    name: string
+    account: string
+    role: string
+    titleLevel?: string
+    phone?: string
+    note?: string
+}
+
+export interface StaffCreateResponse {
+    staffId: number
+    account: string
+    name: string
+    role: string
+    status: string
+}
+
+export interface DoctorStatsVO {
+    doctorId: number
+    doctorName: string
+    deptName?: string
+    titleLevel?: string
+    todayRegistrations: number
+    activePatients: number
+    finishedToday: number
+    pendingChecks: number
+}
+
+export interface DepartmentStatsVO {
+    deptId: number
+    deptName: string
+    deptType?: string
+    doctorCount: number
+    todayRegistrations: number
+    activePatients: number
+    scheduleQuota: number
+    pendingChecks: number
+}
+
+export const createStaff = wrap((data: StaffCreateRequest) =>
+    request.post<StaffCreateResponse>('/admin/staff', data)
+)
+export const getAdminDoctorStats = wrap(() =>
+    request.get<DoctorStatsVO[]>('/admin/stats/doctors')
+)
+export const getAdminDepartmentStats = wrap(() =>
+    request.get<DepartmentStatsVO[]>('/admin/stats/departments')
+)
+
+// ========== 三端首页统计 ==========
 export interface AdminDashboardSummary {
     todayRegistrations: number
     activePatients: number
@@ -108,6 +257,159 @@ export interface PatientDashboardSummary {
     unpaidOrderCount: number
     unpaidAmount: number
     latestVisitState?: string
+}
+
+export interface PatientDepartmentVO {
+    deptId: number
+    deptName: string
+    deptType?: string
+    description?: string
+}
+
+export interface PatientTodayRegisterVO {
+    registerId?: number
+    visitNo?: string
+    patientId?: number
+    visitDate?: string
+    noon?: string
+    queueNo?: number
+    visitState?: string
+    visitStateName?: string
+    deptName?: string
+    doctorName?: string
+    createTime?: string
+}
+
+export interface PatientCheckinResultVO {
+    registerId?: number
+    visitState?: string
+    visitStateName?: string
+    queueNo?: number
+    deptName?: string
+    doctorName?: string
+    message?: string
+}
+
+export interface PatientQueueStatusVO extends PatientCheckinResultVO {
+    patientId?: number
+    visitDate?: string
+    noon?: string
+    waitingAhead?: number
+}
+
+export interface PatientMedicalTechnologyVO {
+    techId?: number
+    techCode?: string
+    techName?: string
+    techFormat?: string
+    techPrice?: number
+    techType?: string
+    priceType?: string
+    deptId?: number
+    deptName?: string
+}
+
+export interface PatientMedicalRequestVO {
+    requestId?: number
+    registerId?: number
+    itemType?: string
+    itemName?: string
+    itemPosition?: string
+    state?: string
+    stateName?: string
+    result?: string
+    price?: number
+    creationTime?: string
+}
+
+export interface PatientPrescriptionVO {
+    prescriptionId?: number
+    registerId?: number
+    prescriptionNo?: string
+    status?: string
+    statusName?: string
+    totalAmount?: number
+    doctorName?: string
+    creationTime?: string
+    dispenseTime?: string
+    drugNames?: string[]
+    drugSummary?: string
+}
+
+export interface PatientReportVO {
+    reportId?: string
+    registerId?: number
+    itemType?: string
+    itemId?: number
+    itemName?: string
+    itemPosition?: string
+    status?: string
+    statusName?: string
+    result?: string
+    deptName?: string
+    doctorName?: string
+    reportTime?: string
+    creationTime?: string
+}
+
+export interface DoctorProfileVO {
+    doctorId?: number
+    doctorName?: string
+    titleLevel?: string
+    phone?: string
+    roleType?: string
+    deptId?: number
+    deptName?: string
+    active?: boolean
+    createTime?: string
+}
+
+export interface DoctorStatisticsVO {
+    todayVisits?: number
+    monthVisits?: number
+    totalVisits?: number
+    pendingCount?: number
+    consultingCount?: number
+    finishedCount?: number
+    pendingCheckCount?: number
+}
+
+export interface ChargeItemVO {
+    itemId?: number
+    itemType?: string
+    itemName?: string
+    registerId?: number
+    patientName?: string
+    amount?: number
+    state?: string
+    stateName?: string
+    creationTime?: string
+}
+
+export interface PrescriptionWorkItemVO {
+    prescriptionId?: number
+    registerId?: number
+    prescriptionNo?: string
+    patientName?: string
+    doctorName?: string
+    status?: string
+    statusName?: string
+    totalAmount?: number
+    drugSummary?: string
+    creationTime?: string
+    dispenseTime?: string
+}
+
+export interface EmployeeListItemVO {
+    employeeId?: number
+    realname?: string
+    roleType?: string
+    titleLevel?: string
+    phone?: string
+    deptId?: number
+    deptName?: string
+    active?: boolean
+    createTime?: string
 }
 
 export const getAdminDashboardSummary = wrap(() =>

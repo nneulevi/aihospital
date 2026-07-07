@@ -39,6 +39,7 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
     instance.interceptors.response.use(
         (response: AxiosResponse) => response.data,
         (error) => {
+            let userMessage = ''
             if (error.response) {
                 const { status, data } = error.response
 
@@ -46,7 +47,8 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
                     case 401:
                         removeToken()
                         removeUser()
-                        showMessage('登录已过期，请重新登录')
+                        userMessage = '登录已过期，请重新登录'
+                        showMessage(userMessage)
                         window.location.href = window.location.pathname.startsWith('/admin') ||
                             window.location.pathname.startsWith('/doctor') ||
                             window.location.pathname.startsWith('/medical-tech') ||
@@ -55,23 +57,32 @@ const createInstance = (baseURL: string = '/api'): AxiosInstance => {
                             : '/patient/login'
                         break
                     case 403:
-                        showMessage('没有权限访问该资源')
+                        userMessage = '没有权限访问该资源'
+                        showMessage(userMessage)
                         break
                     case 404:
-                        showMessage('请求的资源不存在')
+                        userMessage = '请求的资源不存在'
+                        showMessage(userMessage)
                         break
                     case 500:
-                        showMessage(data?.message || '服务器内部错误')
+                        userMessage = data?.message || '服务器内部错误'
+                        showMessage(userMessage)
                         break
                     default:
-                        showMessage(data?.message || '请求失败，请稍后重试')
+                        userMessage = data?.message || '请求失败，请稍后重试'
+                        showMessage(userMessage)
                 }
             } else if (error.request) {
-                showMessage('网络连接失败，请检查网络')
+                userMessage = '网络连接失败，请检查网络'
+                showMessage(userMessage)
             } else {
-                showMessage(error.message || '请求失败')
+                userMessage = error.message || '请求失败'
+                showMessage(userMessage)
             }
 
+            if (userMessage) {
+                error.userMessage = userMessage
+            }
             return Promise.reject(error)
         }
     )

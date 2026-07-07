@@ -32,4 +32,6 @@ public class Register {
     private String gender;        // 患者性别
     private LocalDate birthdate;  // 患者出生日期
     private String caseNumber;    // 病历号
+    private String diagnosis;     // 诊断
+    private String recordStatus;  // 病历状态
 }

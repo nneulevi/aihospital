@@ -22,6 +22,60 @@ public interface PrescriptionMapper {
     @Select("SELECT * FROM prescription WHERE id = #{id}")
     Prescription selectById(Integer id);
 
+    @Select("""
+            SELECT p.*
+            FROM prescription p
+            JOIN register r ON p.register_id = r.id
+             JOIN patient pa ON r.patient_id = pa.id
+             LEFT JOIN employee doc ON p.doctor_id = doc.id
+            WHERE p.prescription_status = #{status}
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM prescription_detail pd
+                           JOIN drug_info d ON pd.drug_id = d.id
+                  WHERE pd.prescription_id = p.id
+                    AND (
+                        COALESCE(d.drug_name, '') LIKE 'Extended%'
+                        OR COALESCE(d.drug_name, '') LIKE 'User Logic%'
+                        OR COALESCE(d.drug_name, '') LIKE '%E2E%'
+                        OR COALESCE(d.drug_name, '') LIKE '%项目验收%'
+                        OR COALESCE(d.drug_name, '') LIKE '%验收%'
+                        OR COALESCE(d.drug_name, '') LIKE '%测试%'
+                        OR COALESCE(d.drug_name, '') LIKE '业务联动%'
+                        OR COALESCE(d.drug_code, '') LIKE 'EXT-%'
+                        OR COALESCE(d.drug_code, '') LIKE 'ULA-%'
+                        OR COALESCE(d.drug_code, '') LIKE 'BIZFLOW-%'
+                        OR COALESCE(d.manufacturer, '') LIKE '%E2E%'
+                        OR COALESCE(d.manufacturer, '') LIKE '%User Logic%'
+                        OR COALESCE(d.manufacturer, '') LIKE '%Extended%'
+                        OR COALESCE(d.manufacturer, '') LIKE '%项目验收%'
+                        OR COALESCE(d.manufacturer, '') LIKE '%验收%'
+                        OR COALESCE(d.manufacturer, '') LIKE '%测试%'
+                        OR COALESCE(d.manufacturer, '') LIKE '业务联动%'
+                    )
+              )
+              AND COALESCE(pa.real_name, '') NOT LIKE '%E2E%'
+              AND COALESCE(pa.real_name, '') NOT LIKE '%User Logic%'
+              AND COALESCE(pa.real_name, '') NOT LIKE '%Extended%'
+              AND COALESCE(pa.real_name, '') NOT LIKE '%项目验收%'
+              AND COALESCE(pa.real_name, '') NOT LIKE '%验收%'
+              AND COALESCE(pa.real_name, '') NOT LIKE '%测试%'
+              AND COALESCE(pa.home_address, '') NOT LIKE '%E2E%'
+              AND COALESCE(pa.home_address, '') NOT LIKE '%User Logic%'
+              AND COALESCE(pa.home_address, '') NOT LIKE '%Extended%'
+              AND COALESCE(pa.home_address, '') NOT LIKE '%项目验收%'
+              AND COALESCE(pa.home_address, '') NOT LIKE '%验收%'
+              AND COALESCE(pa.home_address, '') NOT LIKE '%测试%'
+              AND COALESCE(doc.realname, '') NOT LIKE '%E2E%'
+              AND COALESCE(doc.realname, '') NOT LIKE '%User Logic%'
+              AND COALESCE(doc.realname, '') NOT LIKE '%Extended%'
+              AND COALESCE(doc.realname, '') NOT LIKE '%项目验收%'
+              AND COALESCE(doc.realname, '') NOT LIKE '%验收%'
+              AND COALESCE(doc.realname, '') NOT LIKE '%测试%'
+            ORDER BY p.creation_time DESC, p.id DESC
+            """)
+    List<Prescription> selectByStatus(String status);
+
     List<Prescription> selectByRegisterId(Integer registerId);
 
     int updateStatusAndAmount(@Param("id") Integer id,

@@ -11,6 +11,11 @@ export interface ImageAnalyzeResponseVO {
   findings?: string;
   conclusion?: string;
   confidence?: number;
+  positiveProbability?: number;
+  subtypeProbabilities?: Record<string, number>;
+  analysisReliability?: string;
+  modelLimitations?: string[];
   annotations?: Annotation[];
   aiImagingStatus?: Record<string, any>;
+  previewUrls?: Record<string, string>;
 }

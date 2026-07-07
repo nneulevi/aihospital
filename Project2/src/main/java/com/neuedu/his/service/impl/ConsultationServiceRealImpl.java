@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 public class ConsultationServiceRealImpl implements ConsultationService {
 
@@ -26,16 +27,25 @@ public class ConsultationServiceRealImpl implements ConsultationService {
     @Override
     public ConsultationResponseVO triage(ConsultationRequestDTO request) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("patient_id", request.getPatientId());
+        if (request.getPatientId() != null) {
+            body.put("patient_id", request.getPatientId());
+        }
         body.put("symptoms", request.getSymptoms());
-        body.put("conversation_id", "patient:" + request.getPatientId() + ":consultation");
-        body.put("user_id", "patient:" + request.getPatientId());
-        body.put("role_scope", "patient");
+        body.put("conversation_id", consultationConversationId(request));
+        body.put("user_id", consultationUserId(request));
+        body.put("role_scope", request.getPatientId() == null ? "doctor" : "patient");
         body.put("memory_enabled", true);
 
         Map<String, Object> assist = clinicalAssistClient.consultation(body);
         List<ConsultationResponseVO.DeptRecommendation> recommendations = parseRecommendations(assist.get("recommendations"));
         String diagnosisHint = Objects.toString(assist.get("diagnosis_hint"), "AI辅助问诊结果仅供医生参考，最终结论需医生审核。");
+
+        if (request.getPatientId() == null) {
+            ConsultationResponseVO response = new ConsultationResponseVO();
+            response.setDiagnosisHint(diagnosisHint);
+            response.setRecommendations(recommendations);
+            return response;
+        }
 
         AiConsultation consultation = new AiConsultation();
         consultation.setPatientId(request.getPatientId());
@@ -47,8 +57,26 @@ public class ConsultationServiceRealImpl implements ConsultationService {
 
         ConsultationResponseVO response = new ConsultationResponseVO();
         response.setConsultationId(consultation.getId());
+        response.setDiagnosisHint(diagnosisHint);
         response.setRecommendations(recommendations);
         return response;
+    }
+
+    private String consultationConversationId(ConsultationRequestDTO request) {
+        if (request.getConversationId() != null && !request.getConversationId().isBlank()) {
+            return request.getConversationId();
+        }
+        if (request.getPatientId() != null) {
+            return "patient:" + request.getPatientId() + ":consultation";
+        }
+        return "doctor-triage:" + UUID.randomUUID();
+    }
+
+    private String consultationUserId(ConsultationRequestDTO request) {
+        if (request.getPatientId() != null) {
+            return "patient:" + request.getPatientId();
+        }
+        return "doctor";
     }
 
     private List<ConsultationResponseVO.DeptRecommendation> parseRecommendations(Object value) {

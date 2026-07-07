@@ -10,12 +10,14 @@ from typing import Any, Optional
 import torch
 
 try:
+    from .calibration import calibrated_suggestion_prefix, confidence_band, load_probability_calibration
     from .config import DISPLAY_NAME, INPUT_SHAPE, LESION_TYPE, MODEL_NAME, MODEL_VERSION, THRESHOLD, WINDOW_MAX, WINDOW_MIN
     from .dataset import preprocess_nifti
     from .monai_pipeline import build_monai_classifier
     from .model import Hemorrhage3DCNN
     from .vinbigdata_cnn_lstm import predict_vinbigdata_probabilities
 except ImportError:  # pragma: no cover - direct script fallback.
+    from calibration import calibrated_suggestion_prefix, confidence_band, load_probability_calibration
     from config import DISPLAY_NAME, INPUT_SHAPE, LESION_TYPE, MODEL_NAME, MODEL_VERSION, THRESHOLD, WINDOW_MAX, WINDOW_MIN
     from dataset import preprocess_nifti
     from monai_pipeline import build_monai_classifier
@@ -58,20 +60,34 @@ def reliability_from_quality(quality_context: Optional[dict[str, Any]]) -> tuple
     return "strongly_limited_by_artifact", ["存在重度金属伪影，病灶识别结果可信度可能明显受限。"]
 
 
-def result_from_probability(probability: float, threshold: float, quality_context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def result_from_probability(
+    probability: float,
+    threshold: float,
+    quality_context: Optional[dict[str, Any]] = None,
+    *,
+    calibration_path: Optional[Path] = None,
+) -> dict[str, Any]:
+    calibration = load_probability_calibration(calibration_path, default_threshold=threshold)
+    threshold = float(calibration["threshold"])
+    band = confidence_band(probability, threshold, float(calibration["uncertainty_margin"]))
     detected = probability >= threshold
     reliability, warnings = reliability_from_quality(quality_context)
     if detected:
-        suggestion = "疑似颅内出血，请医生结合原始影像复核。"
+        suggestion = f"{calibrated_suggestion_prefix(band)}：疑似颅内出血，请医生结合原始影像复核。"
         severity = "suspected"
     else:
-        suggestion = "未见明确颅内出血征象，建议医生结合原始影像复核。"
+        suggestion = f"{calibrated_suggestion_prefix(band)}：未见明确颅内出血征象，建议医生结合原始影像复核。"
         severity = "none"
+    if band.startswith("borderline"):
+        suggestion += " 当前概率接近阈值，建议重点复核脑实质、脑沟脑池及硬膜下/蛛网膜下腔高密度影。"
     return {
         "lesion_type": LESION_TYPE,
         "display_name": DISPLAY_NAME,
         "detected": detected,
         "confidence": probability,
+        "decision_threshold": threshold,
+        "confidence_band": band,
+        "calibration": calibration,
         "severity": severity,
         "affected_slices": [],
         "locations": [],
@@ -91,6 +107,7 @@ def predict_hemorrhage(
     checkpoint_path: Path,
     device: str = "auto",
     quality_context: Optional[dict[str, Any]] = None,
+    calibration_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     resolved_device = resolve_device(device)
     model, checkpoint = load_checkpoint(checkpoint_path, resolved_device)
@@ -100,7 +117,7 @@ def predict_hemorrhage(
         logits = model(image[None, ...].to(resolved_device))
         probability = float(torch.sigmoid(logits).cpu().numpy().reshape(-1)[0])
     threshold = float(checkpoint.get("threshold", THRESHOLD))
-    return result_from_probability(probability, threshold, quality_context)
+    return result_from_probability(probability, threshold, quality_context, calibration_path=calibration_path)
 
 
 def predict_vinbigdata_hemorrhage(
@@ -111,6 +128,9 @@ def predict_vinbigdata_hemorrhage(
     threshold: float = THRESHOLD,
     image_size: int = 512,
     max_slices: int = 64,
+    sampling_offsets: tuple[float, ...] = (0.0,),
+    tta_flip: bool = False,
+    calibration_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     probabilities, load_info = predict_vinbigdata_probabilities(
         nifti_path,
@@ -118,9 +138,11 @@ def predict_vinbigdata_hemorrhage(
         device=device,
         image_size=image_size,
         max_slices=max_slices,
+        sampling_offsets=sampling_offsets,
+        tta_flip=tta_flip,
     )
     probability = float(probabilities.get("any", max(probabilities.values(), default=0.0)))
-    result = result_from_probability(probability, threshold, quality_context)
+    result = result_from_probability(probability, threshold, quality_context, calibration_path=calibration_path)
     result.update(
         {
             "model_name": "vinbigdata_midl2020_cnn_lstm_ich",
@@ -130,9 +152,19 @@ def predict_vinbigdata_hemorrhage(
             "checkpoint_framework": load_info.framework,
             "checkpoint_missing_keys": load_info.missing_keys[:20],
             "checkpoint_unexpected_keys": load_info.unexpected_keys[:20],
+            "inference_strategy": load_info.inference_strategy or {},
         }
     )
     return result
+
+
+def parse_float_csv(text: str) -> tuple[float, ...]:
+    values = []
+    for item in text.split(","):
+        item = item.strip()
+        if item:
+            values.append(float(item))
+    return tuple(values) or (0.0,)
 
 
 def parse_args() -> argparse.Namespace:
@@ -142,13 +174,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--provider", choices=["local", "vinbigdata"], default="local")
+    parser.add_argument("--vinbigdata-tta-flip", action="store_true", help="average original and horizontally flipped inference")
+    parser.add_argument("--vinbigdata-sampling-offsets", default="0", help="comma-separated slice sampling offsets, e.g. -0.25,0,0.25")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     if args.provider == "vinbigdata":
-        result = predict_vinbigdata_hemorrhage(args.input, args.checkpoint, args.device)
+        result = predict_vinbigdata_hemorrhage(
+            args.input,
+            args.checkpoint,
+            args.device,
+            sampling_offsets=parse_float_csv(args.vinbigdata_sampling_offsets),
+            tta_flip=args.vinbigdata_tta_flip,
+        )
     else:
         result = predict_hemorrhage(args.input, args.checkpoint, args.device)
     text = json.dumps(result, ensure_ascii=False, indent=2)

@@ -104,14 +104,16 @@ const loadSources = async () => {
   loading.value = true
   try {
     const res: any = await getScheduleSources({
-      pageNum: 1,
-      pageSize: 100,
-      deptId: query.deptId || undefined,
-      doctorId: query.doctorId || undefined,
-      startDate: dateRange.value?.[0],
-      endDate: dateRange.value?.[1],
+      query: {
+        pageNum: 1,
+        pageSize: 100,
+        deptId: query.deptId || undefined,
+        doctorId: query.doctorId || undefined,
+        startDate: dateRange.value?.[0],
+        endDate: dateRange.value?.[1],
+      },
     })
-    sources.value = res.records || []
+    sources.value = res.data?.records || res.records || []
   } finally {
     loading.value = false
   }

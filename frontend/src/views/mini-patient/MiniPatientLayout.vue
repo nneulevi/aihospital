@@ -1,11 +1,7 @@
 <template>
   <div class="mini-patient-shell" data-testid="mini-patient-shell">
     <div class="mini-patient-frame">
-      <router-view v-slot="{ Component }">
-        <keep-alive>
-          <component :is="Component" />
-        </keep-alive>
-      </router-view>
+      <router-view />
     </div>
 
     <van-tabbar v-model="active" route fixed safe-area-inset-bottom class="mini-tabbar">
@@ -50,7 +46,7 @@ watch(
   min-height: 100vh;
   padding-bottom: 72px;
   background:
-    linear-gradient(180deg, rgba(35, 117, 255, 0.09), rgba(247, 248, 251, 0) 250px),
+    linear-gradient(180deg, rgba(76, 175, 80, 0.09), rgba(247, 248, 251, 0) 250px),
     #f7f8fb;
 }
 
@@ -59,6 +55,6 @@ watch(
 }
 
 :deep(.van-tabbar-item--active) {
-  color: #2375ff;
+  color: #4caf50;
 }
 </style>

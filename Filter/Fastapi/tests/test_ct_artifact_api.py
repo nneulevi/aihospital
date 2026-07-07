@@ -32,7 +32,7 @@ def test_health_contract() -> None:
         assert "mature_mar_task_type" in payload["model"]
 
 
-def test_indudonet_registered_checkpoint_is_not_marked_executable() -> None:
+def test_indudonet_registered_checkpoint_enables_local_mar_path() -> None:
     original_path = server_3d.MATURE_MAR_CHECKPOINT_PATH
     original_name = server_3d.MATURE_MAR_MODEL_NAME
     original_task_type = server_3d.MATURE_MAR_TASK_TYPE
@@ -44,10 +44,10 @@ def test_indudonet_registered_checkpoint_is_not_marked_executable() -> None:
         status = server_3d.build_artifact_reduction_status()
         assert status["registered"] is True
         assert status["checkpoint_exists"] is True
-        assert status["executable"] is False
-        assert status["correction_status"] == "checkpoint_registered_not_executable"
-        assert status["use_for_lesion_input"] is False
-        assert any("ODL" in blocker or "Astra" in blocker for blocker in status["execution_blockers"])
+        assert status["executable"] is True
+        assert status["correction_status"] == "available_via_mask_guided_image_domain_mar"
+        assert status["use_for_lesion_input"] is True
+        assert status["execution_blockers"] == []
     finally:
         server_3d.MATURE_MAR_CHECKPOINT_PATH = original_path
         server_3d.MATURE_MAR_MODEL_NAME = original_name
@@ -84,15 +84,20 @@ def assert_detect_result_and_download_contract(app, expected_backend: str) -> No
             assert key in payload
         assert payload["artifact_segmentation"]["mask_url"] == payload["download_url"]
         assert payload["artifact_segmentation"]["severity"] == payload["severity"]
-        assert payload["artifact_reduction"]["model_name"] in {"InDuDoNet", None}
+        assert payload["artifact_reduction"]["model_name"] in {"mask_guided_image_domain_mar", "InDuDoNet", None}
         assert payload["artifact_reduction"]["task_type"] in {"metal_artifact_reduction", None}
         assert payload["artifact_reduction"]["correction_status"] in {
             "not_configured",
             "checkpoint_registered_not_executable",
+            "available_via_mask_guided_image_domain_mar",
+            "executed",
             "corrected",
             "failed",
         }
         assert "use_for_lesion_input" in payload["artifact_reduction"]
+        if payload["artifact_reduction"].get("corrected_ct_url"):
+            corrected_response = client.get(payload["artifact_reduction"]["corrected_ct_url"])
+            assert corrected_response.status_code == 200
 
         result_response = client.get(payload["result_url"])
         assert result_response.status_code == 200

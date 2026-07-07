@@ -98,16 +98,19 @@ checkpoint_fallback_used=false
 
 ### InDuDoNet
 
-`Filter/model/external_weights/metal_artifact_reduction/InDuDoNet_latest.pt` 仍不等于“图像校正已执行”。当前只登记 checkpoint 和能力边界：
+`Filter/model/external_weights/metal_artifact_reduction/InDuDoNet_latest.pt` 已登记为成熟 MAR checkpoint。由于业务上传的是标准 NIfTI 体数据，不包含官方 InDuDoNet 投影域推理所需的 `ma_sinogram`、`LI_sinogram`、`metal_trace` 等输入，当前链路不伪装为官方投影域 InDuDoNet 前向，而是执行透明的 mask 引导图像域 MAR 校正。
 
 ```text
 artifact_reduction.registered=true
-artifact_reduction.executable=false
-artifact_reduction.correction_status=checkpoint_registered_not_executable
-artifact_reduction.use_for_lesion_input=false
+artifact_reduction.executable=true
+artifact_reduction.execution_engine=sitk_mask_guided_gaussian_replacement
+artifact_reduction.official_indudonet_executed=false
+artifact_reduction.correction_status=executed
+artifact_reduction.corrected_ct_url=/api/ct-artifact/files/{task_id}/corrected_ct.nii.gz
+artifact_reduction.use_for_lesion_input=true
 ```
 
-需要补齐官方网络源码、ODL/Astra 投影算子、sinogram/metal_trace/LI 输入后，才能把 `executable` 改为 `true` 并输出 `corrected_ct_url`。
+这意味着当前业务链路已经能完成“伪影识别 -> 输出校正 CT -> 使用校正 CT 进入病灶识别”。若后续要宣称“官方 InDuDoNet 投影域推理”，仍需补齐官方网络源码、ODL/Astra 投影算子、sinogram/metal_trace/LI 输入。
 
 ### 本轮验收
 

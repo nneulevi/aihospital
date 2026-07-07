@@ -13,6 +13,76 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+:root {
+  --van-toast-background: rgba(17, 24, 39, 0.94);
+  --van-toast-text-color: #ffffff;
+  --van-notify-text-color: #ffffff;
+  --van-notify-primary-background: rgba(17, 24, 39, 0.94);
+  --van-notify-success-background: rgba(17, 24, 39, 0.94);
+  --van-notify-danger-background: rgba(17, 24, 39, 0.94);
+  --van-notify-warning-background: rgba(17, 24, 39, 0.94);
+}
+
+.van-toast,
+.van-toast.app-readable-toast,
+.app-readable-toast,
+.van-notify,
+.el-message,
+.el-notification {
+  max-width: min(82vw, 360px) !important;
+  padding: 10px 14px !important;
+  color: #ffffff !important;
+  background: rgba(17, 24, 39, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.26) !important;
+  line-height: 1.45 !important;
+}
+
+.van-toast {
+  min-width: auto !important;
+}
+
+.van-notify {
+  width: fit-content !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  top: 14px !important;
+  border-radius: 8px !important;
+}
+
+.van-toast--loading,
+.van-toast--success,
+.van-toast--fail {
+  width: auto !important;
+  min-width: 104px !important;
+}
+
+.van-toast .van-icon,
+.van-toast__loading,
+.el-message .el-icon,
+.el-notification .el-icon {
+  color: #ffffff !important;
+}
+
+.van-toast__text,
+.van-toast.app-readable-toast .van-toast__text,
+.app-readable-toast .van-toast__text,
+.van-notify,
+.el-message__content,
+.el-notification__title,
+.el-notification__content {
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.el-message .el-message__closeBtn,
+.el-notification .el-notification__closeBtn {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
 // 患者端（移动端）
 .patient-app {
   background-color: $patient-bg;

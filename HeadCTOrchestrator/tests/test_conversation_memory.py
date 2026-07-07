@@ -128,6 +128,193 @@ def test_clinical_consultation_injects_previous_turn_memory(monkeypatch) -> None
     assert "高血压病史" in captured_prompts[1]["conversation_memory"]["key_facts"]
 
 
+def test_diagnosis_prompt_filters_memory_when_current_input_negates_history(monkeypatch) -> None:
+    store = InMemoryConversationStore()
+    captured_prompts: list[dict] = []
+    payload = {
+        "conversation_id": "medical-record-1-diagnosis",
+        "role_scope": "doctor",
+        "user_id": "doctor",
+        "medical_record_id": 1,
+        "scene": "diagnosis",
+    }
+    persist_conversation_turn(
+        store,
+        payload,
+        user_message="主诉头痛恶心，既往有高血压病史，查体颈抵抗可疑。",
+        assistant_payload={"diagnosis_hint": "建议关注高血压相关风险。"},
+    )
+
+    monkeypatch.setattr(
+        clinical_assist,
+        "_retrieve",
+        lambda query_text: {
+            "status": "success",
+            "retrieval_confidence": 0.8,
+            "sources": [],
+            "snippets": [],
+            "cache_hit": False,
+        },
+    )
+    monkeypatch.setattr(clinical_assist, "get_conversation_store", lambda: store, raising=False)
+
+    def fake_call_bailian_cached(*, cache_kind: str, prompt_payload: dict, messages: list[dict]):
+        captured_prompts.append(prompt_payload)
+        return (
+            {
+                "suggestions": [
+                    {
+                        "disease_id": None,
+                        "disease_code": "R51",
+                        "disease_name": "头痛待查",
+                        "confidence": 0.4,
+                        "evidence": "当前输入未提供高血压或颈抵抗体征。",
+                    }
+                ]
+            },
+            False,
+            "disabled",
+        )
+
+    monkeypatch.setattr(clinical_assist, "_call_bailian_cached", fake_call_bailian_cached)
+
+    clinical_assist.generate_diagnosis_assist(
+        {
+            "conversation_id": "medical-record-1-diagnosis",
+            "role_scope": "doctor",
+            "user_id": "doctor",
+            "medical_record_id": 1,
+            "symptoms": "突发头痛伴恶心",
+            "history": "无",
+            "physique": "无其他不适",
+        }
+    )
+
+    prompt = captured_prompts[0]
+    memory = prompt["conversation_memory"]
+    dumped = str(memory)
+    assert "高血压" not in dumped
+    assert "颈抵抗" not in dumped
+    assert prompt["current_input_priority"] == "当前输入明确否定或更新的信息优先于历史记忆；不得把被否定的旧记忆当作本次事实。"
+    assert any("不得新增当前输入未提供的既往史、体征或检查结果" in rule for rule in prompt["fact_grounding_rules"])
+
+
+def test_diagnosis_output_filters_unsupported_history_dependent_suggestions(monkeypatch) -> None:
+    store = InMemoryConversationStore()
+
+    monkeypatch.setattr(
+        clinical_assist,
+        "_retrieve",
+        lambda query_text: {
+            "status": "success",
+            "retrieval_confidence": 0.8,
+            "sources": [],
+            "snippets": [],
+            "cache_hit": False,
+        },
+    )
+    monkeypatch.setattr(clinical_assist, "get_conversation_store", lambda: store, raising=False)
+
+    def fake_call_bailian_cached(*, cache_kind: str, prompt_payload: dict, messages: list[dict]):
+        return (
+            {
+                "suggestions": [
+                    {
+                        "disease_id": None,
+                        "disease_code": "G43.9",
+                        "disease_name": "偏头痛，未特指",
+                        "confidence": 0.55,
+                        "evidence": "突发头痛伴恶心，需补充发作特点。",
+                    },
+                    {
+                        "disease_id": None,
+                        "disease_code": "G44.2",
+                        "disease_name": "高血压性头痛",
+                        "confidence": 0.48,
+                        "evidence": "建议复核有无高血压病史。",
+                    },
+                ]
+            },
+            False,
+            "disabled",
+        )
+
+    monkeypatch.setattr(clinical_assist, "_call_bailian_cached", fake_call_bailian_cached)
+
+    result = clinical_assist.generate_diagnosis_assist(
+        {
+            "conversation_id": "standalone-diagnosis-filter-check",
+            "role_scope": "doctor",
+            "user_id": "doctor",
+            "symptoms": "突发头痛伴恶心",
+            "history": "无",
+            "physique": "无其他不适",
+        }
+    )
+
+    names = [item["disease_name"] for item in result["suggestions"]]
+    assert "偏头痛，未特指" in names
+    assert "高血压性头痛" not in names
+
+
+def test_stream_diagnosis_emits_only_grounded_filtered_display_text(monkeypatch) -> None:
+    store = InMemoryConversationStore()
+
+    monkeypatch.setattr(
+        clinical_assist,
+        "_retrieve",
+        lambda query_text: {
+            "status": "success",
+            "retrieval_confidence": 0.8,
+            "sources": [],
+            "snippets": [],
+            "cache_hit": False,
+        },
+    )
+    monkeypatch.setattr(clinical_assist, "get_conversation_store", lambda: store, raising=False)
+
+    def fake_call_bailian_stream(messages: list[dict]):
+        yield '{"suggestions":[{"disease_code":"G44.2","disease_name":"高血压性头痛","confidence":0.48,"evidence":"建议复核有无高血压病史。"},'
+        yield '{"disease_code":"G43.9","disease_name":"偏头痛，未特指","confidence":0.55,"evidence":"突发头痛伴恶心，需补充发作特点。"}]}'
+        return {
+            "suggestions": [
+                {
+                    "disease_code": "G44.2",
+                    "disease_name": "高血压性头痛",
+                    "confidence": 0.48,
+                    "evidence": "建议复核有无高血压病史。",
+                },
+                {
+                    "disease_code": "G43.9",
+                    "disease_name": "偏头痛，未特指",
+                    "confidence": 0.55,
+                    "evidence": "突发头痛伴恶心，需补充发作特点。",
+                },
+            ]
+        }
+
+    monkeypatch.setattr(clinical_assist, "_call_bailian_stream", fake_call_bailian_stream)
+
+    events = list(
+        clinical_assist.stream_diagnosis_assist(
+            {
+                "conversation_id": "standalone-diagnosis-stream-filter-check",
+                "role_scope": "doctor",
+                "user_id": "doctor",
+                "symptoms": "突发头痛伴恶心",
+                "history": "无",
+                "physique": "无其他不适",
+            }
+        )
+    )
+
+    delta_text = "".join(event["data"].get("text", "") for event in events if event["event"] == "delta")
+    final_result = [event for event in events if event["event"] == "final"][0]["data"]["result"]
+    assert "偏头痛，未特指" in delta_text
+    assert "高血压性头痛" not in delta_text
+    assert "高血压性头痛" not in str(final_result["suggestions"])
+
+
 def test_conversation_memory_periodically_compresses_long_context() -> None:
     store = InMemoryConversationStore()
     payload = {

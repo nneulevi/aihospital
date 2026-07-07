@@ -6,8 +6,8 @@
         <van-icon name="user-circle-o" size="64" color="#5E60CE" />
       </div>
       <div class="user-info">
-        <div class="user-name">{{ userStore.userName || '张医生' }}</div>
-        <div class="user-dept">呼吸内科 | 主任医师</div>
+        <div class="user-name">{{ profile.doctorName || userStore.userName || '医生' }}</div>
+        <div class="user-dept">{{ profile.deptName || '未分配科室' }} | {{ profile.titleLevel || '医生' }}</div>
       </div>
     </div>
 
@@ -15,27 +15,26 @@
       <div class="stats-title">本月统计</div>
       <div class="stats-grid">
         <div class="stat-box">
-          <div class="stat-num">156</div>
+          <div class="stat-num">{{ stats.monthVisits ?? 0 }}</div>
           <div class="stat-label">接诊人次</div>
         </div>
         <div class="stat-box">
-          <div class="stat-num">98%</div>
-          <div class="stat-label">诊断准确率</div>
+          <div class="stat-num">{{ stats.pendingCount ?? 0 }}</div>
+          <div class="stat-label">待接诊</div>
         </div>
         <div class="stat-box">
-          <div class="stat-num">4.9</div>
-          <div class="stat-label">患者评分</div>
+          <div class="stat-num">{{ stats.finishedCount ?? 0 }}</div>
+          <div class="stat-label">今日完成</div>
         </div>
       </div>
     </div>
 
     <div class="menu-group">
-      <div class="menu-item" @click="showToast('功能开发中')">
+      <div class="menu-item">
         <van-icon name="setting-o" size="22" color="#5E60CE" />
-        <span class="menu-label">账号设置</span>
-        <van-icon name="arrow" class="menu-arrow" />
+        <span class="menu-label">联系电话：{{ profile.phone || '未登记' }}</span>
       </div>
-      <div class="menu-item" @click="showToast('功能开发中')">
+      <div class="menu-item" @click="router.push('/doctor/schedule')">
         <van-icon name="records-o" size="22" color="#5E60CE" />
         <span class="menu-label">排班查询</span>
         <van-icon name="arrow" class="menu-arrow" />
@@ -50,12 +49,30 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, reactive } from 'vue'
 import { showToast, showDialog } from 'vant'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { getDoctorProfile, getDoctorStatistics, type DoctorProfileVO, type DoctorStatisticsVO } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
+const profile = reactive<DoctorProfileVO>({})
+const stats = reactive<DoctorStatisticsVO>({})
+
+const loadProfile = async () => {
+  if (!userStore.doctorId) return
+  try {
+    const [profileRes, statsRes] = await Promise.all([
+      getDoctorProfile(userStore.doctorId),
+      getDoctorStatistics(userStore.doctorId)
+    ])
+    Object.assign(profile, profileRes.data || profileRes)
+    Object.assign(stats, statsRes.data || statsRes)
+  } catch {
+    showToast('医生信息加载失败')
+  }
+}
 
 const handleLogout = () => {
   showDialog({
@@ -69,6 +86,8 @@ const handleLogout = () => {
     router.push('/auth/login')
   }).catch(() => {})
 }
+
+onMounted(loadProfile)
 </script>
 
 <style lang="scss" scoped>

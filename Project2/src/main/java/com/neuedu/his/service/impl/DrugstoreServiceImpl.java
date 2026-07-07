@@ -5,9 +5,11 @@ import com.github.pagehelper.PageInfo;
 import com.neuedu.his.exception.BusinessException;
 import com.neuedu.his.mapper.DrugInfoMapper;
 import com.neuedu.his.mapper.DrugStockRecordMapper;
+import com.neuedu.his.mapper.FinanceRecordMapper;
 import com.neuedu.his.mapper.PrescriptionDetailMapper;
 import com.neuedu.his.mapper.PrescriptionMapper;
 import com.neuedu.his.model.dto.*;
+import com.neuedu.his.model.entity.FinanceRecord;
 import com.neuedu.his.model.entity.DrugInfo;
 import com.neuedu.his.model.entity.DrugStockRecord;
 import com.neuedu.his.model.entity.Prescription;
@@ -34,6 +36,8 @@ public class DrugstoreServiceImpl implements DrugstoreService {
     private PrescriptionMapper prescriptionMapper;
     @Autowired
     private PrescriptionDetailMapper prescriptionDetailMapper;
+    @Autowired
+    private FinanceRecordMapper financeRecordMapper;
 
     @Override
     public PageResult<DrugInventoryVO> getInventory(DrugInventoryQueryDTO query) {
@@ -122,6 +126,17 @@ public class DrugstoreServiceImpl implements DrugstoreService {
             record(drug.getId(), "REFUND", quantity, before, after, request.getPharmacistId(), request.getPrescriptionId(), request.getRefundReason());
         }
         prescriptionMapper.updateStatusAndAmount(request.getPrescriptionId(), "REFUNDED", null);
+        FinanceRecord financeRecord = new FinanceRecord();
+        financeRecord.setRecordNo("REFUND-" + prescription.getRegisterId() + "-PRESCRIPTION-" + prescription.getId() + "-" + System.currentTimeMillis());
+        financeRecord.setRegisterId(prescription.getRegisterId());
+        financeRecord.setItemId(prescription.getId());
+        financeRecord.setItemType("PRESCRIPTION");
+        financeRecord.setItemName("处方");
+        financeRecord.setAmount(prescription.getTotalAmount());
+        financeRecord.setChargeMethod("REFUND");
+        financeRecord.setRecordType("REFUND");
+        financeRecord.setOperatorName("药房退药");
+        financeRecordMapper.insert(financeRecord);
     }
 
     private PageResult<DrugInventoryVO> toInventoryPage(List<DrugInfo> list) {

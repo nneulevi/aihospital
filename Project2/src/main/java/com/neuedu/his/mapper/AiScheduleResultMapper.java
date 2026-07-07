@@ -23,7 +23,21 @@ public interface AiScheduleResultMapper {
     @Select("SELECT * FROM ai_schedule_result WHERE id = #{id}")
     AiScheduleResult selectById(Integer id);
 
-    @Select("SELECT * FROM ai_schedule_result WHERE deptment_id = #{deptId} AND schedule_date BETWEEN #{startDate} AND #{endDate} ORDER BY schedule_date, shift_type")
+    @Select("""
+            SELECT r.*
+            FROM ai_schedule_result r
+                     JOIN employee e ON r.employee_id = e.id
+            WHERE r.deptment_id = #{deptId}
+              AND r.schedule_date BETWEEN #{startDate} AND #{endDate}
+              AND e.delmark = TRUE
+              AND e.realname NOT LIKE '%E2E%'
+              AND e.realname NOT LIKE '%User Logic%'
+              AND e.realname NOT LIKE '%Extended%'
+              AND e.realname NOT LIKE '%项目验收%'
+              AND e.realname NOT LIKE '%验收%'
+              AND e.realname NOT LIKE '%测试%'
+            ORDER BY r.schedule_date, r.shift_type
+            """)
     List<AiScheduleResult> selectByDateRange(@Param("deptId") Integer deptId,
                                               @Param("startDate") LocalDate startDate,
                                               @Param("endDate") LocalDate endDate);

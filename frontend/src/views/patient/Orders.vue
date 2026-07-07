@@ -21,7 +21,7 @@
               <div class="order-amount">¥{{ order.amount?.toFixed(2) }}</div>
             </div>
           </div>
-          <div v-if="unpaidOrders.length === 0" class="empty-state"><van-icon name="bill-o" size="64" color="#C4B8A8" /><p>暂无待缴费项目</p></div>
+          <div v-if="unpaidOrders.length === 0" class="empty-state"><van-icon name="bill-o" size="64" color="#94A3B8" /><p>暂无待缴费项目</p></div>
         </div>
       </van-tab>
 
@@ -42,7 +42,7 @@
               <div class="order-amount paid-amount">¥{{ order.amount?.toFixed(2) }}</div>
             </div>
           </div>
-          <div v-if="paidOrders.length === 0" class="empty-state"><van-icon name="records-o" size="64" color="#C4B8A8" /><p>暂无缴费记录</p></div>
+          <div v-if="paidOrders.length === 0" class="empty-state"><van-icon name="records-o" size="64" color="#94A3B8" /><p>暂无缴费记录</p></div>
         </div>
       </van-tab>
     </van-tabs>
@@ -175,19 +175,19 @@ onMounted(loadOrders)
 </script>
 
 <style lang="scss" scoped>
-.orders-page { min-height: 100vh; background: #FFF9F0; padding-bottom: 70px; }
-.order-tabs :deep(.van-tabs__line) { background-color: #F4A261; }
+.orders-page { min-height: 100vh; background: #F5F7FA; padding-bottom: 70px; }
+.order-tabs :deep(.van-tabs__line) { background-color: #4CAF50; }
 .order-list { padding: 12px; }
-.order-card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.order-card.paid { background: #FAF3E8; }
+.order-card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 8px rgba(31,42,55,.06); }
+.order-card.paid { background: #F7FBF7; }
 .order-header { display: flex; gap: 8px; margin-bottom: 8px; }
-.order-info { flex: 1; .order-type { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; } .order-name { font-size: 14px; color: #5C4B3A; } .order-time { font-size: 12px; color: #8B7A6B; } }
-.order-footer { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #E8DCC8; }
+.order-info { flex: 1; .order-type { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; } .order-name { font-size: 14px; color: #1A1A2E; } .order-time { font-size: 12px; color: #687789; } }
+.order-footer { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #E6EBF2; }
 .order-amount { font-size: 18px; font-weight: 700; color: #E76F51; }
 .order-amount.paid-amount { color: #8CB369; }
-.settlement-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 12px 16px; border-top: 1px solid #E8DCC8; display: flex; justify-content: space-between; align-items: center; }
-.settlement-left { display: flex; align-items: center; gap: 16px; .total-amount { font-size: 14px; color: #8B7A6B; .amount { font-size: 18px; font-weight: 700; color: #E76F51; } } }
-.settlement-bar .van-button--primary { background: #F4A261; border-color: #F4A261; }
-.empty-state { text-align: center; padding: 60px 0; color: #C4B8A8; }
-.pay-method { display: flex; align-items: center; gap: 16px; padding: 16px; border-bottom: 1px solid #E8DCC8; cursor: pointer; span:first-of-type { flex: 1; font-size: 16px; } }
+.settlement-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 12px 16px; border-top: 1px solid #E6EBF2; display: flex; justify-content: space-between; align-items: center; }
+.settlement-left { display: flex; align-items: center; gap: 16px; .total-amount { font-size: 14px; color: #687789; .amount { font-size: 18px; font-weight: 700; color: #E76F51; } } }
+.settlement-bar .van-button--primary { background: #4CAF50; border-color: #4CAF50; }
+.empty-state { text-align: center; padding: 60px 0; color: #94A3B8; }
+.pay-method { display: flex; align-items: center; gap: 16px; padding: 16px; border-bottom: 1px solid #E6EBF2; cursor: pointer; span:first-of-type { flex: 1; font-size: 16px; } }
 </style>

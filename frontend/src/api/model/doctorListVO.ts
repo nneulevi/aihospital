@@ -7,8 +7,11 @@
 
 export interface DoctorListVO {
   doctorId?: number;
+  deptId?: number;
+  deptName?: string;
   doctorName?: string;
   titleLevel?: string;
+  specialty?: string;
   scheduleDate?: string;
   noon?: string;
   registQuota?: number;

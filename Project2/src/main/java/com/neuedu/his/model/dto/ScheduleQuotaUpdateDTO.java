@@ -7,6 +7,6 @@ import lombok.Data;
 @Data
 public class ScheduleQuotaUpdateDTO {
     @NotNull
-    @Min(0)
+    @Min(1)
     private Integer registQuota;
 }

@@ -24,6 +24,17 @@
         <span>病历号: {{ patientInfo.caseNumber }}</span>
         <span>挂号ID: {{ registerId }}</span>
       </div>
+      <van-button
+        class="return-waiting-btn"
+        plain
+        round
+        size="small"
+        type="primary"
+        :loading="returningWaiting"
+        @click="returnWaiting"
+      >
+        退回候诊
+      </van-button>
     </div>
 
     <!-- 诊疗流程 Tab -->
@@ -53,16 +64,41 @@
           <van-button type="warning" block round :loading="aiLoading" @click="getAiSuggestion" class="action-btn">
             🤖 AI 诊断建议
           </van-button>
+          <div v-if="aiStreamStatus" class="ai-stream-status">
+            {{ aiStreamStatus }}
+          </div>
+          <div v-if="aiStreamText" class="ai-stream-text">
+            {{ aiStreamText }}
+          </div>
 
           <div v-if="aiSuggestions.length > 0" class="ai-card">
-            <div class="ai-title">AI 诊断建议</div>
+            <div class="ai-title-row">
+              <div>
+                <div class="ai-title">AI 诊断建议</div>
+                <p>结合当前病历要点生成，医生可采纳后继续编辑。</p>
+              </div>
+              <van-tag type="primary">{{ aiSuggestions.length }} 条建议</van-tag>
+            </div>
             <div v-for="(s, idx) in aiSuggestions" :key="idx" class="suggestion-item">
               <div class="suggestion-header">
-                <span class="disease-name">{{ s.diseaseName }}</span>
-                <van-tag type="primary">{{ (s.confidence || 0) * 100 }}%</van-tag>
+                <div>
+                  <span class="disease-name">{{ s.diseaseName }}</span>
+                  <div class="suggestion-evidence">{{ s.evidence || '暂无证据说明' }}</div>
+                </div>
+                <van-tag :type="suggestionTagType(s.confidence)">
+                  {{ suggestionConfidencePercent(s.confidence) }}%
+                </van-tag>
               </div>
-              <div class="suggestion-evidence">{{ s.evidence }}</div>
-              <van-button size="small" type="primary" plain @click="adoptSuggestion(s)">采纳</van-button>
+              <div class="suggestion-meter" aria-label="AI 诊断置信度">
+                <div
+                  class="suggestion-meter-fill"
+                  :style="{ width: `${suggestionConfidencePercent(s.confidence)}%` }"
+                ></div>
+              </div>
+              <div class="suggestion-actions">
+                <span>建议复核主诉、体征和检查结果后确认</span>
+                <van-button size="small" type="primary" plain @click="adoptSuggestion(s)">采纳</van-button>
+              </div>
             </div>
           </div>
         </div>
@@ -74,13 +110,24 @@
           <!-- 已开项目 -->
           <div class="list-card">
             <div class="card-title">📋 已开项目</div>
-            <div v-if="orderedItems.length === 0" class="empty-mini">暂无已开项目</div>
-            <div v-for="(item, idx) in orderedItems" :key="idx" class="ordered-item">
+            <div v-if="existingOrders.length === 0 && orderedItems.length === 0" class="empty-mini">暂无已开项目</div>
+            <div v-for="item in existingOrders" :key="item.key" class="ordered-item existing">
               <div class="item-main">
                 <van-tag :type="item.type === 'CHECK' ? 'primary' : item.type === 'INSPECTION' ? 'warning' : 'success'">
                   {{ item.type === 'CHECK' ? '检查' : item.type === 'INSPECTION' ? '检验' : '处置' }}
                 </van-tag>
                 <span class="item-name">{{ item.name }}</span>
+                <van-tag plain>{{ item.stateName }}</van-tag>
+              </div>
+              <div class="item-sub">{{ item.position }}</div>
+            </div>
+            <div v-for="(item, idx) in orderedItems" :key="`draft-${idx}`" class="ordered-item">
+              <div class="item-main">
+                <van-tag :type="item.type === 'CHECK' ? 'primary' : item.type === 'INSPECTION' ? 'warning' : 'success'">
+                  {{ item.type === 'CHECK' ? '检查' : item.type === 'INSPECTION' ? '检验' : '处置' }}
+                </van-tag>
+                <span class="item-name">{{ item.name }}</span>
+                <van-tag plain type="warning">待提交</van-tag>
               </div>
               <div class="item-sub">{{ item.position }}</div>
             </div>
@@ -172,7 +219,13 @@
 
           <!-- AI 影像识别与报告 -->
           <div class="ai-report-card">
-            <div class="ai-report-title">🤖 AI 影像识别与报告生成</div>
+            <div class="ai-report-title-row">
+              <div>
+                <div class="ai-report-title">AI 影像识别与报告生成</div>
+                <p>上传头部 CT 后执行伪影评估、影像识别与报告草稿生成。</p>
+              </div>
+              <van-icon name="scan" />
+            </div>
             <van-cell-group inset>
               <van-field
                   v-model="aiImageForm.checkRequestId"
@@ -207,12 +260,36 @@
               </van-button>
             </div>
             <div v-if="imageAnalysis" class="ai-report-content">
-              <p><strong>影像所见：</strong>{{ imageAnalysis.findings || '暂无' }}</p>
-              <p><strong>AI结论：</strong>{{ imageAnalysis.conclusion || '暂无' }}</p>
-              <p><strong>置信度：</strong>{{ formatConfidence(imageAnalysis.confidence) }}</p>
-              <div v-if="imageAnalysis.confidence !== undefined && imageAnalysis.confidence !== null" class="confidence-panel">
+              <div class="analysis-summary-grid">
+                <div class="analysis-summary-item">
+                  <span>出血阳性概率</span>
+                  <strong>{{ formatConfidence(positiveProbability) }}</strong>
+                </div>
+                <div class="analysis-summary-item">
+                  <span>分析可靠性</span>
+                  <strong>{{ analysisReliabilityText }}</strong>
+                </div>
+              </div>
+              <div class="analysis-text-block">
+                <strong>影像所见</strong>
+                <p>{{ imageAnalysis.findings || '暂无' }}</p>
+              </div>
+              <div class="analysis-text-block">
+                <strong>AI结论</strong>
+                <p>{{ imageAnalysis.conclusion || '暂无' }}</p>
+              </div>
+              <div v-if="previewUrlList.length" class="preview-panel">
+                <div class="preview-title">影像可视化输出</div>
+                <div class="preview-grid">
+                  <div v-for="item in previewUrlList" :key="item.label" class="preview-item">
+                    <img :src="item.url" :alt="`${item.label}预览图`" />
+                    <span>{{ item.label }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="positiveProbability !== undefined && positiveProbability !== null" class="confidence-panel">
                 <div class="confidence-header">
-                  <span>AI 置信度</span>
+                  <span>颅内出血阳性概率</span>
                   <strong>{{ imageConfidencePercent }}%</strong>
                 </div>
                 <div class="confidence-bar" role="progressbar" :aria-valuenow="imageConfidencePercent" aria-valuemin="0" aria-valuemax="100">
@@ -220,6 +297,18 @@
                 </div>
                 <div class="confidence-note">
                   {{ confidenceInterpretation }}
+                </div>
+              </div>
+              <div v-if="subtypeProbabilityList.length" class="subtype-panel">
+                <div class="subtype-title">出血亚型概率</div>
+                <div class="subtype-list">
+                  <div v-for="item in subtypeProbabilityList" :key="item.key" class="subtype-row">
+                    <span>{{ item.label }}</span>
+                    <div class="subtype-meter">
+                      <div class="subtype-meter-fill" :style="{ width: `${item.percent}%` }"></div>
+                    </div>
+                    <strong>{{ item.percent }}%</strong>
+                  </div>
                 </div>
               </div>
               <div v-if="imageAnalysis.aiImagingStatus" class="ai-status-panel">
@@ -251,15 +340,28 @@
                   {{ aiStatus.limitations.join(' / ') }}
                 </div>
               </div>
+              <div v-if="modelLimitationsList.length" class="analysis-text-block">
+                <strong>模型限制与复核重点</strong>
+                <p v-for="item in modelLimitationsList" :key="item">{{ item }}</p>
+              </div>
               <div v-if="imageAnalysis.annotations?.length" class="annotation-list">
                 <div v-for="(annotation, idx) in imageAnalysis.annotations" :key="idx" class="annotation-item">
-                  {{ annotation.label || '标注' }}：x={{ annotation.x ?? 0 }}，y={{ annotation.y ?? 0 }}，w={{ annotation.width ?? 0 }}，h={{ annotation.height ?? 0 }}
+                  <span>{{ annotation.label || '标注' }}</span>
+                  <small>x={{ annotation.x ?? 0 }}，y={{ annotation.y ?? 0 }}，w={{ annotation.width ?? 0 }}，h={{ annotation.height ?? 0 }}</small>
                 </div>
               </div>
             </div>
             <div v-if="aiReport" class="ai-report-content">
-              <p><strong>报告ID：</strong>{{ aiReport.reportId || '--' }}</p>
-              <p><strong>状态：</strong>{{ aiReport.status || '--' }}</p>
+              <div class="report-meta-grid">
+                <div>
+                  <span>报告ID</span>
+                  <strong>{{ aiReport.reportId || '--' }}</strong>
+                </div>
+                <div>
+                  <span>状态</span>
+                  <strong>{{ aiReport.status || '--' }}</strong>
+                </div>
+              </div>
               <p class="report-text">{{ aiReport.reportContent || '暂无报告内容' }}</p>
             </div>
           </div>
@@ -291,6 +393,20 @@
       <!-- 处方 -->
       <van-tab title="处方" name="prescription">
         <div class="tab-panel">
+          <div class="list-card">
+            <div class="card-title">📄 已开处方</div>
+            <div v-if="existingPrescriptions.length === 0" class="empty-mini">暂无已开处方</div>
+            <div v-for="item in existingPrescriptions" :key="item.id" class="drug-item">
+              <div class="drug-header">
+                <span class="drug-name">{{ item.prescriptionNo || `处方 ${item.id}` }}</span>
+                <span class="drug-price">¥{{ Number(item.totalAmount || 0).toFixed(2) }}</span>
+              </div>
+              <div class="drug-detail">
+                状态：{{ item.prescriptionStatus || 'CREATED' }} | 开立时间：{{ item.creationTime || '-' }}
+              </div>
+            </div>
+          </div>
+
           <!-- 已选药品 -->
           <div class="list-card">
             <div class="card-title">💊 处方药品</div>
@@ -329,6 +445,21 @@
         </div>
       </van-tab>
     </van-tabs>
+
+    <van-action-sheet v-model:show="showDrugPicker" title="选择药品">
+      <div class="drug-picker-list">
+        <button
+          v-for="option in drugOptions"
+          :key="option.value"
+          type="button"
+          class="drug-picker-option"
+          @click="selectDrug(option)"
+        >
+          <span>{{ option.text }}</span>
+          <strong>¥{{ option.price.toFixed(2) }}</strong>
+        </button>
+      </div>
+    </van-action-sheet>
   </div>
 </template>
 
@@ -338,9 +469,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { showToast, showLoadingToast, closeToast } from 'vant'
 import { useUserStore } from '@/stores/user'
 import {
-  saveMedicalRecord, suggest, createCheckRequest, createInspectionRequest,
+  saveMedicalRecord, suggest, diagnosisSuggestStream, createCheckRequest, createInspectionRequest,
   createDisposalRequest, getCheckResults, confirmDiagnosis, createPrescription,
-  upload, analyze, reportGenerate, getPatientDetail
+  upload, analyze, reportGenerate, getPatientDetail, returnPatientToWaiting,
+  getMedicalRecord, getOrdersByRegisterId, getPrescriptionsByRegisterId, getDiagnosis
 } from '@/api'
 import type {
   MedicalRecordSaveRequestDTO, DiagnosisSuggestRequestDTO, DiagnosisSuggestResponseVO,
@@ -358,6 +490,7 @@ const registerId = ref(Number(route.query.registerId) || 0)
 const patientName = ref(route.query.name as string || '患者')
 
 const visitTab = ref('record')
+const returningWaiting = ref(false)
 
 // 患者信息
 const patientInfo = ref({
@@ -397,6 +530,8 @@ const recordForm = ref<MedicalRecordSaveRequestDTO>({
 })
 const savingRecord = ref(false)
 const aiLoading = ref(false)
+const aiStreamStatus = ref('')
+const aiStreamText = ref('')
 const aiSuggestions = ref<any[]>([])
 
 const saveRecord = async () => {
@@ -413,18 +548,68 @@ const saveRecord = async () => {
 
 const getAiSuggestion = async () => {
   aiLoading.value = true
+  aiStreamStatus.value = '正在建立 AI 流式连接...'
+  aiStreamText.value = ''
   try {
-    const res = await suggest({
+    let finalPayload: any = null
+    await diagnosisSuggestStream({
       medicalRecordId: registerId.value,
       symptoms: recordForm.value.readme,
       history: recordForm.value.history,
       physique: recordForm.value.physique
+    }, {
+      onEvent: ({ event, data }) => {
+        if (event === 'memory_loaded' || event === 'rag_retrieved' || event === 'llm_generating') {
+          aiStreamStatus.value = data?.message || aiStreamStatus.value
+        } else if (event === 'delta') {
+          aiStreamText.value += data?.text || ''
+        }
+      },
+      onFinal: (data) => {
+        finalPayload = data?.data || data
+      },
+      onError: (data) => {
+        throw new Error(data?.message || 'AI建议获取失败')
+      },
     })
-    aiSuggestions.value = res.data?.suggestions || []
+    if (!finalPayload) {
+      throw new Error('AI流式响应缺少最终结果')
+    }
+    aiSuggestions.value = finalPayload?.suggestions || []
   } catch {
-    showToast('AI建议获取失败')
+    try {
+      aiStreamStatus.value = '流式连接不可用，正在切换普通分析...'
+      const res = await suggest({
+        medicalRecordId: registerId.value,
+        symptoms: recordForm.value.readme,
+        history: recordForm.value.history,
+        physique: recordForm.value.physique
+      })
+      aiSuggestions.value = res.data?.suggestions || []
+    } catch {
+      showToast('AI建议获取失败')
+    }
   } finally {
+    aiStreamStatus.value = ''
+    aiStreamText.value = ''
     aiLoading.value = false
+  }
+}
+
+const returnWaiting = async () => {
+  if (!registerId.value) {
+    showToast('缺少挂号ID')
+    return
+  }
+  returningWaiting.value = true
+  try {
+    await returnPatientToWaiting(registerId.value)
+    showToast('已退回候诊队列')
+    router.replace('/doctor')
+  } catch {
+    showToast('退回候诊失败')
+  } finally {
+    returningWaiting.value = false
   }
 }
 
@@ -433,29 +618,45 @@ const adoptSuggestion = (s: any) => {
   showToast(`已采纳：${s.diseaseName}`)
 }
 
+const suggestionConfidencePercent = (confidence?: number) => {
+  if (confidence === undefined || confidence === null) return 0
+  return Math.max(0, Math.min(100, Math.round(confidence * 100)))
+}
+
+const suggestionTagType = (confidence?: number) => {
+  const percent = suggestionConfidencePercent(confidence)
+  if (percent >= 75) return 'success'
+  if (percent >= 45) return 'warning'
+  return 'default'
+}
+
 // 检查/检验/处置
 const orderedItems = ref<any[]>([])
+const existingOrders = ref<any[]>([])
 const newCheck = ref<CheckItemDTO>({ medicalTechnologyId: 1, checkInfo: '', checkPosition: '' })
 const newInspection = ref<InspectionItemDTO>({ medicalTechnologyId: 4, inspectionInfo: '', inspectionPosition: '' })
 const newDisposal = ref<DisposalItemDTO>({ medicalTechnologyId: 6, disposalInfo: '', disposalPosition: '' })
 const savingOrders = ref(false)
 
 const addCheck = () => {
-  if (!newCheck.value.checkInfo) { showToast('请填写检查项目'); return }
+  if (!newCheck.value.checkInfo?.trim()) { showToast('请填写检查项目'); return }
+  if (!newCheck.value.checkPosition?.trim()) { showToast('请填写检查部位'); return }
   orderedItems.value.push({ type: 'CHECK', ...newCheck.value })
   newCheck.value = { medicalTechnologyId: 1, checkInfo: '', checkPosition: '' }
   showToast('已添加检查')
 }
 
 const addInspection = () => {
-  if (!newInspection.value.inspectionInfo) { showToast('请填写检验项目'); return }
+  if (!newInspection.value.inspectionInfo?.trim()) { showToast('请填写检验项目'); return }
+  if (!newInspection.value.inspectionPosition?.trim()) { showToast('请填写检验样本'); return }
   orderedItems.value.push({ type: 'INSPECTION', ...newInspection.value })
   newInspection.value = { medicalTechnologyId: 4, inspectionInfo: '', inspectionPosition: '' }
   showToast('已添加检验')
 }
 
 const addDisposal = () => {
-  if (!newDisposal.value.disposalInfo) { showToast('请填写处置项目'); return }
+  if (!newDisposal.value.disposalInfo?.trim()) { showToast('请填写处置项目'); return }
+  if (!newDisposal.value.disposalPosition?.trim()) { showToast('请填写处置部位'); return }
   orderedItems.value.push({ type: 'DISPOSAL', ...newDisposal.value })
   newDisposal.value = { medicalTechnologyId: 6, disposalInfo: '', disposalPosition: '' }
   showToast('已添加处置')
@@ -465,6 +666,10 @@ const submitOrders = async () => {
   const checks = orderedItems.value.filter(i => i.type === 'CHECK')
   const inspections = orderedItems.value.filter(i => i.type === 'INSPECTION')
   const disposals = orderedItems.value.filter(i => i.type === 'DISPOSAL')
+  if (checks.length + inspections.length + disposals.length === 0) {
+    showToast('请先添加检查、检验或处置项目')
+    return
+  }
 
   savingOrders.value = true
   try {
@@ -478,6 +683,8 @@ const submitOrders = async () => {
       await createDisposalRequest({ registerId: registerId.value, items: disposals.map(c => ({ medicalTechnologyId: c.medicalTechnologyId, disposalInfo: c.disposalInfo, disposalPosition: c.disposalPosition })) })
     }
     showToast('申请提交成功')
+    orderedItems.value = []
+    await loadExistingOrders()
   } catch {
     showToast('提交失败')
   } finally {
@@ -511,6 +718,7 @@ const loadResults = async () => {
   try {
     const res = await getCheckResults(registerId.value)
     checkResults.value = res.data || {}
+    existingOrders.value = mapExistingOrders(checkResults.value)
     closeToast()
   } catch {
     closeToast()
@@ -612,6 +820,10 @@ const generateAiReport = async () => {
         findings: imageAnalysis.value.findings,
         conclusion: imageAnalysis.value.conclusion,
         confidence: imageAnalysis.value.confidence,
+        positiveProbability: imageAnalysis.value.positiveProbability,
+        subtypeProbabilities: imageAnalysis.value.subtypeProbabilities,
+        analysisReliability: imageAnalysis.value.analysisReliability,
+        modelLimitations: imageAnalysis.value.modelLimitations,
         annotations: imageAnalysis.value.annotations,
         aiImagingStatus: imageAnalysis.value.aiImagingStatus
       })
@@ -636,21 +848,21 @@ const formatConfidence = (confidence?: number) => {
 }
 
 const imageConfidencePercent = computed(() => {
-  const confidence = imageAnalysis.value?.confidence
+  const confidence = positiveProbability.value
   if (confidence === undefined || confidence === null) return 0
   return Math.max(0, Math.min(100, Math.round(confidence * 100)))
 })
 
 const confidenceColor = computed(() => {
-  if (imageConfidencePercent.value >= 75) return '#2A9D8F'
+  if (imageConfidencePercent.value >= 75) return '#E76F51'
   if (imageConfidencePercent.value >= 45) return '#F4A261'
-  return '#E76F51'
+  return '#2A9D8F'
 })
 
 const confidenceInterpretation = computed(() => {
-  if (imageConfidencePercent.value >= 75) return '模型提示较高置信度，建议医生重点核对对应层面和原始图像。'
-  if (imageConfidencePercent.value >= 45) return '模型提示中等置信度，需结合伪影影响、相邻层面和临床资料复核。'
-  return '模型置信度较低，不宜作为主要判断依据，请以医生阅片为准。'
+  if (imageConfidencePercent.value >= 75) return '模型提示较高出血阳性概率，建议医生重点核对对应层面、窗宽窗位和原始图像。'
+  if (imageConfidencePercent.value >= 45) return '模型提示中等出血阳性概率，需结合伪影影响、相邻层面和临床资料复核。'
+  return '当前模型未提示明确颅内出血阳性倾向；低概率不等同于图像分析失败，仍需医生结合原始影像确认。'
 })
 
 const aiStatus = computed<Record<string, any>>(() => imageAnalysis.value?.aiImagingStatus || {})
@@ -658,6 +870,50 @@ const qualityControlModel = computed<Record<string, any>>(() => aiStatus.value.q
 const artifactReduction = computed<Record<string, any>>(() => aiStatus.value.artifactReduction || aiStatus.value.artifact_reduction || {})
 const lesionModel = computed<Record<string, any>>(() => aiStatus.value.lesionModel || aiStatus.value.lesion_model || {})
 const aiWorkflowReady = computed(() => Boolean(aiStatus.value.workflowReady ?? aiStatus.value.workflow_ready))
+const positiveProbability = computed(() => imageAnalysis.value?.positiveProbability ?? imageAnalysis.value?.confidence)
+const analysisReliabilityText = computed(() => imageAnalysis.value?.analysisReliability || (imageAnalysis.value?.aiImagingStatus ? '链路完整，按结构化结果解释' : '基础结果'))
+const subtypeLabels: Record<string, string> = {
+  any: '任意出血',
+  epidural: '硬膜外出血',
+  intraparenchymal: '脑实质内出血',
+  intraventricular: '脑室内出血',
+  subarachnoid: '蛛网膜下腔出血',
+  subdural: '硬膜下出血'
+}
+const subtypeProbabilityList = computed(() => {
+  const probs = ((imageAnalysis.value as any)?.subtypeProbabilities || (imageAnalysis.value as any)?.subtype_probabilities || {}) as Record<string, number>
+  return Object.entries(probs)
+    .map(([key, value]) => ({
+      key,
+      label: subtypeLabels[key] || key,
+      percent: Math.max(0, Math.min(100, Math.round(Number(value || 0) * 100)))
+    }))
+    .sort((a, b) => (a.key === 'any' ? -1 : b.key === 'any' ? 1 : b.percent - a.percent))
+})
+const modelLimitationsList = computed(() => {
+  const items = [
+    ...(((imageAnalysis.value as any)?.modelLimitations || (imageAnalysis.value as any)?.model_limitations || []) as string[]),
+    ...((aiStatus.value.limitations || []) as string[])
+  ]
+  return Array.from(new Set(items.filter(Boolean)))
+})
+const previewUrlList = computed(() => {
+  const urls = ((imageAnalysis.value as any)?.previewUrls || (imageAnalysis.value as any)?.preview_urls || {}) as Record<string, string>
+  const labels: Record<string, string> = {
+    axial: '轴位',
+    coronal: '冠状位',
+    sagittal: '矢状位',
+    quality_axial: '质控轴位',
+    quality_coronal: '质控冠状位',
+    quality_sagittal: '质控矢状位',
+    lesion_axial: '病灶轴位',
+    lesion_coronal: '病灶冠状位',
+    lesion_sagittal: '病灶矢状位'
+  }
+  return Object.entries(urls)
+    .filter(([, url]) => Boolean(url))
+    .map(([key, url]) => ({ label: labels[key] || key, url }))
+})
 
 const readStatusField = (source: Record<string, any>, camelKey: string, snakeKey: string) => {
   return source?.[camelKey] ?? source?.[snakeKey]
@@ -665,7 +921,7 @@ const readStatusField = (source: Record<string, any>, camelKey: string, snakeKey
 
 const formatProjectUseStatus = (status?: string) => {
   if (status === 'ready_for_project_demo') return '项目链路可用'
-  if (status === 'mock_demo_only') return '模拟演示'
+  if (String(status || '').toLowerCase().includes('demo')) return '影像辅助分析'
   if (status === 'degraded_for_project_demo') return '链路受限'
   return status || '--'
 }
@@ -694,6 +950,7 @@ const submitConfirm = async () => {
     const ids = diseaseIdsText.value.split(',').filter(s => s).map(Number)
     await confirmDiagnosis({ ...confirmForm.value, registerId: registerId.value, diseaseIds: ids })
     showToast('确诊成功')
+    await loadExistingDiagnosis()
   } catch {
     showToast('确诊失败')
   } finally {
@@ -703,6 +960,7 @@ const submitConfirm = async () => {
 
 // 处方
 const prescriptionItems = ref<any[]>([])
+const existingPrescriptions = ref<any[]>([])
 const newDrug = ref<any>({ drugName: '', usageRoute: '', frequency: '', dosage: '', singleDose: '', useDays: 1, drugNumber: 1, drugPrice: 0 })
 const savingRx = ref(false)
 const showDrugPicker = ref(false)
@@ -715,6 +973,15 @@ const drugOptions = [
   { text: '二甲双胍片 0.5g×30片', value: 5, price: 12 },
   { text: '氨氯地平片 5mg×28片', value: 6, price: 25 }
 ]
+
+type DrugOption = typeof drugOptions[number]
+
+const selectDrug = (option: DrugOption) => {
+  newDrug.value.drugId = option.value
+  newDrug.value.drugName = option.text
+  newDrug.value.drugPrice = option.price
+  showDrugPicker.value = false
+}
 
 const addDrug = () => {
   if (!newDrug.value.drugName) { showToast('请选择药品'); return }
@@ -747,6 +1014,7 @@ const submitPrescription = async () => {
     await createPrescription({ registerId: registerId.value, doctorId: userStore.doctorId || 1, items })
     showToast('处方提交成功')
     prescriptionItems.value = []
+    await loadExistingPrescriptions()
   } catch {
     showToast('提交失败')
   } finally {
@@ -754,9 +1022,95 @@ const submitPrescription = async () => {
   }
 }
 
+const formatOrderStateName = (state?: string) => {
+  if (state === 'CREATED') return '待缴费'
+  if (state === 'CHARGED' || state === 'PAID') return '已缴费'
+  if (state === 'EXECUTING') return '执行中'
+  if (state === 'COMPLETED' || state === 'DONE') return '已完成'
+  if (state === 'REFUNDED') return '已退费'
+  if (state === 'CANCELLED') return '已取消'
+  return state || '处理中'
+}
+
+const mapExistingOrders = (data: CheckResultVO | any) => {
+  const result: any[] = []
+  for (const item of data?.checkRequests || []) {
+    result.push({
+      key: `CHECK-${item.id}`,
+      type: 'CHECK',
+      name: item.checkInfo || '检查项目',
+      position: item.checkPosition || '-',
+      stateName: formatOrderStateName(item.checkState)
+    })
+  }
+  for (const item of data?.inspectionRequests || []) {
+    result.push({
+      key: `INSPECTION-${item.id}`,
+      type: 'INSPECTION',
+      name: item.inspectionInfo || '检验项目',
+      position: item.inspectionPosition || '-',
+      stateName: formatOrderStateName(item.inspectionState)
+    })
+  }
+  for (const item of data?.disposalRequests || []) {
+    result.push({
+      key: `DISPOSAL-${item.id}`,
+      type: 'DISPOSAL',
+      name: item.disposalInfo || '处置项目',
+      position: item.disposalPosition || '-',
+      stateName: formatOrderStateName(item.disposalState)
+    })
+  }
+  return result
+}
+
+const loadExistingRecord = async () => {
+  const res = await getMedicalRecord(registerId.value).catch(() => undefined)
+  const data = res?.data || res
+  if (!data) return
+  recordForm.value = {
+    ...recordForm.value,
+    ...data,
+    registerId: registerId.value
+  }
+}
+
+const loadExistingOrders = async () => {
+  const res = await getOrdersByRegisterId(registerId.value).catch(() => undefined)
+  const data = (res?.data || res || {}) as CheckResultVO
+  checkResults.value = data
+  existingOrders.value = mapExistingOrders(data)
+}
+
+const loadExistingPrescriptions = async () => {
+  const res = await getPrescriptionsByRegisterId(registerId.value).catch(() => undefined)
+  existingPrescriptions.value = (res?.data || res || []) as any[]
+}
+
+const loadExistingDiagnosis = async () => {
+  const res = await getDiagnosis(registerId.value).catch(() => undefined)
+  const data = res?.data || res
+  if (!data) return
+  confirmForm.value = {
+    ...confirmForm.value,
+    ...data,
+    registerId: registerId.value
+  }
+  diseaseIdsText.value = Array.isArray(data.diseaseIds) ? data.diseaseIds.join(',') : ''
+}
+
+const loadExistingVisitData = async () => {
+  if (!registerId.value) return
+  await loadExistingRecord()
+  await loadExistingOrders()
+  await loadExistingPrescriptions()
+  await loadExistingDiagnosis()
+}
+
 onMounted(() => {
   if (route.query.name) patientName.value = route.query.name as string
   loadPatientDetail()
+  loadExistingVisitData()
 })
 </script>
 
@@ -794,6 +1148,9 @@ onMounted(() => {
     padding: 2px 8px;
     border-radius: 4px;
   }
+  .return-waiting-btn {
+    margin-top: 10px;
+  }
 }
 .visit-tabs :deep(.van-tabs__line) {
   background-color: #5E60CE;
@@ -819,18 +1176,54 @@ onMounted(() => {
   margin-bottom: 12px;
   height: 44px;
 }
+.ai-stream-status {
+  margin: -2px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 162, 97, 0.28);
+  border-radius: 8px;
+  background: #fff8ed;
+  color: #a45d20;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ai-stream-text {
+  margin: -4px 0 12px;
+  padding: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid rgba(42, 157, 143, 0.22);
+  border-radius: 8px;
+  background: #f7fffd;
+  color: #2f5d56;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .ai-card {
-  background: linear-gradient(135deg, rgba(94, 96, 206, 0.08) 0%, rgba(94, 96, 206, 0.03) 100%);
-  border-left: 4px solid #5E60CE;
+  background: linear-gradient(135deg, rgba(94, 96, 206, 0.09) 0%, rgba(42, 157, 143, 0.06) 100%);
+  border: 1px solid rgba(94, 96, 206, 0.18);
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
+}
+.ai-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  p {
+    margin: 4px 0 0;
+    color: #687789;
+    font-size: 12px;
+    line-height: 1.5;
+  }
 }
 .ai-title {
   font-size: 15px;
   font-weight: 600;
   color: #5E60CE;
-  margin-bottom: 12px;
 }
 .suggestion-item {
   background: white;
@@ -841,7 +1234,8 @@ onMounted(() => {
 .suggestion-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 8px;
 }
 .disease-name {
@@ -853,7 +1247,29 @@ onMounted(() => {
   font-size: 13px;
   color: #8B7A6B;
   line-height: 1.5;
-  margin-bottom: 8px;
+  margin-top: 5px;
+}
+.suggestion-meter {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef1f6;
+  margin-bottom: 10px;
+}
+.suggestion-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5E60CE, #2A9D8F);
+  transition: width 0.25s ease;
+}
+.suggestion-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #687789;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .ordered-item {
   background: #F5F7FA;
@@ -916,23 +1332,128 @@ onMounted(() => {
   }
 }
 .ai-report-card {
-  background: #FFF9F0;
+  background: linear-gradient(180deg, #fffaf3 0%, #ffffff 100%);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
   border: 1px solid #F4A261;
 }
+.ai-report-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+  p {
+    margin: 4px 0 0;
+    color: #8B7A6B;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  :deep(.van-icon) {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: #fff1df;
+    color: #F4A261;
+    font-size: 24px;
+  }
+}
 .ai-report-title {
   font-size: 15px;
   font-weight: 600;
   color: #F4A261;
-  margin-bottom: 12px;
 }
 .ai-report-content {
   font-size: 13px;
   color: #5C4B3A;
   line-height: 1.8;
   margin-bottom: 12px;
+}
+.analysis-summary-grid,
+.report-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.analysis-summary-item,
+.report-meta-grid div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #FFF9F0;
+  border: 1px solid #F7D6A3;
+  span {
+    display: block;
+    color: #8B7A6B;
+    font-size: 11px;
+  }
+  strong {
+    display: block;
+    margin-top: 4px;
+    color: #3D342C;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+}
+.analysis-text-block {
+  padding: 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #F0E3D1;
+  margin-bottom: 8px;
+  strong {
+    display: block;
+    color: #3D342C;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  p {
+    margin: 0;
+    color: #5C4B3A;
+    line-height: 1.65;
+  }
+}
+.preview-panel {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #dce6ef;
+}
+.preview-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 10px;
+}
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.preview-item {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  span {
+    text-align: center;
+    font-size: 12px;
+    color: #64748b;
+  }
+  img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    border-radius: 6px;
+    border: 1px solid #d8e0e8;
+    background: #111827;
+  }
 }
 .ai-status-panel {
   background: #fff;
@@ -977,6 +1498,46 @@ onMounted(() => {
   font-size: 12px;
   line-height: 1.5;
 }
+.subtype-panel {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #F0E3D1;
+}
+.subtype-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3D342C;
+  margin-bottom: 10px;
+}
+.subtype-list {
+  display: grid;
+  gap: 8px;
+}
+.subtype-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  color: #5C4B3A;
+  font-size: 12px;
+  strong {
+    text-align: right;
+    color: #3D342C;
+  }
+}
+.subtype-meter {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf2f7;
+}
+.subtype-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2A9D8F, #F4A261);
+}
 .ai-status-header {
   display: flex;
   align-items: center;
@@ -1017,6 +1578,11 @@ onMounted(() => {
   color: #8B7A6B;
   overflow-wrap: anywhere;
 }
+@media (max-width: 640px) {
+  .preview-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .upload-row {
   display: flex;
   align-items: center;
@@ -1041,13 +1607,27 @@ onMounted(() => {
   margin-top: 8px;
 }
 .annotation-item {
-  padding: 6px 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
   background: white;
   border-radius: 6px;
   font-size: 12px;
   color: #5C4B3A;
+  span {
+    font-weight: 600;
+  }
+  small {
+    color: #8B7A6B;
+    overflow-wrap: anywhere;
+  }
 }
 .report-text {
+  padding: 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #F0E3D1;
   white-space: pre-wrap;
 }
 .ai-report-footer {
@@ -1107,6 +1687,33 @@ onMounted(() => {
     font-size: 18px;
     font-weight: 700;
     color: #E76F51;
+  }
+}
+.drug-picker-list {
+  padding: 8px 16px 20px;
+  background: #fff;
+}
+.drug-picker-option {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #F0E3D1;
+  background: #fff;
+  padding: 14px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #3D342C;
+  font-size: 14px;
+  text-align: left;
+  span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  strong {
+    flex: 0 0 auto;
+    color: #E76F51;
+    font-weight: 700;
   }
 }
 </style>

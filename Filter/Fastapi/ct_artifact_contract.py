@@ -14,7 +14,14 @@ from fastapi.responses import JSONResponse
 
 
 API_PREFIX = "/api/ct-artifact"
-ALLOWED_OUTPUT_FILES = {"mask.nii.gz", "result.json", "preview_axial.png", "preview_coronal.png", "preview_sagittal.png"}
+ALLOWED_OUTPUT_FILES = {
+    "mask.nii.gz",
+    "corrected_ct.nii.gz",
+    "result.json",
+    "preview_axial.png",
+    "preview_coronal.png",
+    "preview_sagittal.png",
+}
 
 
 class ApiErrorCode:

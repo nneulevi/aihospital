@@ -98,7 +98,7 @@ onMounted(loadDetail)
 .record-detail-page {
   min-height: 100vh;
   background: #f7f8fa;
-  padding-bottom: 80px;
+  padding-bottom: 148px;
 }
 .loading-state {
   text-align: center;
@@ -152,7 +152,7 @@ onMounted(loadDetail)
 .action-bar {
   position: fixed;
   right: 0;
-  bottom: 0;
+  bottom: 56px;
   left: 0;
   display: flex;
   gap: 12px;
